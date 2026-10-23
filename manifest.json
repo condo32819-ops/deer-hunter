@@ -5,7 +5,7 @@
   "start_url": "/deer-hunter/",
   "scope": "/deer-hunter/",
   "display": "fullscreen",
-  "orientation": "landscape",
+  "orientation": "any",
   "background_color": "#142016",
   "theme_color": "#142016",
   "icons": [

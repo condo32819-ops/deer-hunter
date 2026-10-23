@@ -15,6 +15,7 @@
   const HORIZON = 0xf0d2ae;
   const BEST_KEY = 'deer-hunter-best';
   const MUTE_KEY = 'deer-hunter-muted';
+  const TURN_KEY = 'deer-hunter-turn';
   const POINTS = { buck: 150, doe: 100, boar: 120, rabbit: 50 };
   const WALK = { buck: 1.35, doe: 1.55, boar: 1.15, rabbit: 2.35 };
   const FLEE = { buck: 7.2, doe: 7.6, boar: 6.2, rabbit: 9.2 };
@@ -49,7 +50,15 @@
   const tiltBtn = $('tilt-btn');
   const rotateEl = $('rotate');
   const playAnywayBtn = $('play-anyway');
+  const playSidewaysBtn = $('play-sideways');
+  const turnTitleBtn = $('turn-title');
+  const turnHudBtn = $('turn-hud');
+  const stage = $('stage');
+  const bangEl = $('bang');
+  const streakEl = $('streak');
+  const ammoPanel = document.querySelector('.ammo-panel');
   const muteButtons = [$('mute-title'), $('mute-hud')];
+  const ANDROID = /Android/i.test(navigator.userAgent || '');
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -86,6 +95,10 @@
   let birdIn = 3;
   let muted = false;
   let playAnyway = false;
+  let turnPref = 0;
+  let turn = 0;
+  let landscapeLock = 'idle';
+  let vibrated = 0;
   let tiltOn = false;
   let tiltBase = null;
   let tiltListening = false;
@@ -122,6 +135,8 @@
     best = Number(localStorage.getItem(BEST_KEY) || 0) || 0;
     muted = localStorage.getItem(MUTE_KEY) === '1';
     playAnyway = sessionStorage.getItem('deer-hunter-portrait-ok') === '1';
+    const savedTurn = Number(sessionStorage.getItem(TURN_KEY));
+    if (savedTurn === 90 || savedTurn === -90) turnPref = savedTurn;
   } catch (err) { /* private mode */ }
 
   for (let i = 0; i < MAG; i++) {
@@ -159,34 +174,45 @@
     return samples;
   }
 
-  function viewBox() {
+  function rawViewport() {
     const vv = window.visualViewport;
     let w = window.innerWidth || 0;
     let h = window.innerHeight || 0;
+    let x = 0;
+    let y = 0;
     if (vv && vv.width > 0 && vv.height > 0) {
       w = vv.width;
       h = vv.height;
+      x = vv.offsetLeft || 0;
+      y = vv.offsetTop || 0;
     }
     const doc = document.documentElement;
-    if (doc && doc.clientWidth > 0 && doc.clientHeight > 0 && doc.clientWidth * doc.clientHeight > w * h) {
+    if (doc && doc.clientWidth > 0 && doc.clientHeight > 0 && doc.clientWidth * doc.clientHeight > w * h + 40) {
       w = doc.clientWidth;
       h = doc.clientHeight;
+      x = 0;
+      y = 0;
     }
-    return { w: Math.round(w), h: Math.round(h) };
+    return { w: Math.round(w), h: Math.round(h), x: Math.round(x), y: Math.round(y) };
   }
 
-  // Layout follows the box we actually draw into (visual viewport, else the
-  // larger layout viewport). The blocking hint is stricter: it appears only
-  // when every sample is clearly taller than wide. One landscape reading —
-  // inner size, visualViewport, or the layout viewport — keeps the game
-  // uncovered, even if screen.orientation or a media query would disagree.
+  // Portrait follows the real viewport, never the CSS-rotated stage.
+  // The hint is stricter: one landscape reading keeps it hidden.
   function isPortraitLayout() {
-    const box = viewBox();
+    const box = rawViewport();
     return box.h > box.w + 20;
   }
 
+  function viewBox() {
+    if (stage && stage.clientWidth > 0 && stage.clientHeight > 0) {
+      return { w: stage.clientWidth, h: stage.clientHeight };
+    }
+    const box = rawViewport();
+    return { w: box.w, h: box.h };
+  }
+
   function shouldShowHint() {
-    if (playAnyway) return false;
+    if (playAnyway || turnPref !== 0) return false;
     const samples = viewportSamples();
     if (!samples.length) return false;
     if (samples.some(([w, h]) => w >= h)) return false;
@@ -197,13 +223,134 @@
     return rotateEl.classList.contains('show');
   }
 
+  function updateTurnButtons() {
+    const label = turnPref === 90 ? 'Turn the other way' : turnPref === -90 ? 'Upright view' : 'Rotate view';
+    if (turnTitleBtn) {
+      turnTitleBtn.textContent = label;
+      turnTitleBtn.setAttribute('aria-pressed', turnPref ? 'true' : 'false');
+    }
+    if (turnHudBtn) {
+      turnHudBtn.setAttribute('aria-label', label);
+      turnHudBtn.setAttribute('aria-pressed', turnPref ? 'true' : 'false');
+    }
+  }
+
+  function layoutStage() {
+    if (!stage) return;
+    const box = rawViewport();
+    const portrait = box.h > box.w + 20;
+    turn = portrait ? turnPref : 0;
+    document.body.classList.toggle('portrait', portrait && turn === 0);
+    document.body.classList.toggle('turned', turn !== 0);
+    stage.style.position = 'fixed';
+    stage.style.transformOrigin = 'top left';
+    if (turn === 90) {
+      stage.style.width = box.h + 'px';
+      stage.style.height = box.w + 'px';
+      stage.style.left = box.x + 'px';
+      stage.style.top = (box.y + box.h) + 'px';
+      stage.style.transform = 'rotate(-90deg)';
+    } else if (turn === -90) {
+      stage.style.width = box.h + 'px';
+      stage.style.height = box.w + 'px';
+      stage.style.left = (box.x + box.w) + 'px';
+      stage.style.top = box.y + 'px';
+      stage.style.transform = 'rotate(90deg)';
+    } else {
+      stage.style.width = box.w + 'px';
+      stage.style.height = box.h + 'px';
+      stage.style.left = box.x + 'px';
+      stage.style.top = box.y + 'px';
+      stage.style.transform = 'none';
+    }
+    updateTurnButtons();
+  }
+
   function syncOrientation() {
-    const portrait = isPortraitLayout();
-    document.body.classList.toggle('portrait', portrait);
+    layoutStage();
     const show = shouldShowHint();
     rotateEl.classList.toggle('show', show);
     rotateEl.setAttribute('aria-hidden', show ? 'false' : 'true');
+    try { window.scrollTo(0, 0); } catch (err) { /* ignore */ }
     if (renderer && camera) resize();
+  }
+
+  let syncQueued = false;
+  function scheduleSync() {
+    syncOrientation();
+    if (syncQueued) return;
+    syncQueued = true;
+    [80, 240, 600, 1100].forEach((ms, index, all) => {
+      setTimeout(() => {
+        syncOrientation();
+        if (index === all.length - 1) syncQueued = false;
+      }, ms);
+    });
+  }
+
+  function rememberTurn() {
+    try { sessionStorage.setItem(TURN_KEY, String(turnPref)); } catch (err) { /* ignore */ }
+  }
+
+  function setTurnPref(value) {
+    turnPref = value === 90 || value === -90 ? value : 0;
+    if (turnPref !== 0) {
+      playAnyway = true;
+      try { sessionStorage.setItem('deer-hunter-portrait-ok', '1'); } catch (err) { /* ignore */ }
+    }
+    rememberTurn();
+    syncOrientation();
+  }
+
+  function cycleTurn() {
+    setTurnPref(turnPref === 0 ? 90 : turnPref === 90 ? -90 : 0);
+  }
+
+  function fallbackSideways() {
+    if (!ANDROID || !isPortraitLayout()) return;
+    if (turnPref === 0) setTurnPref(90);
+    else syncOrientation();
+  }
+
+  // Android Chrome can turn a fullscreen page sideways even when auto-rotate
+  // is off. The lock has to run inside the start-button gesture, and it
+  // rejects when fullscreen is unavailable. iOS has no lock; it keeps the
+  // upright layout and the optional Rotate view button.
+  function engageLandscape() {
+    const root = document.documentElement;
+    const req = root.requestFullscreen || root.webkitRequestFullscreen;
+    const already = document.fullscreenElement || document.webkitFullscreenElement;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const tryLock = () => {
+      if (!ANDROID || !screen.orientation || typeof screen.orientation.lock !== 'function') {
+        landscapeLock = 'skipped';
+        return Promise.reject(new Error('skip'));
+      }
+      landscapeLock = 'pending';
+      return screen.orientation.lock('landscape').then(() => {
+        landscapeLock = 'locked';
+        syncOrientation();
+      }, () => {
+        if (landscapeLock !== 'locked') landscapeLock = 'refused';
+      });
+    };
+    if (coarse && req && !already) {
+      try {
+        const pending = req.call(root);
+        if (pending && typeof pending.then === 'function') pending.then(() => { if (ANDROID) tryLock(); }).catch(() => {});
+      } catch (err) { /* iOS Safari throws */ }
+    }
+    if (ANDROID) {
+      tryLock().catch(() => {});
+      setTimeout(() => {
+        if (!isPortraitLayout()) return;
+        if (landscapeLock === 'locked') {
+          setTimeout(() => { if (isPortraitLayout()) fallbackSideways(); }, 480);
+          return;
+        }
+        fallbackSideways();
+      }, 700);
+    }
   }
 
   function unscopedFov() {
@@ -237,7 +384,7 @@
   function toast(text, good) {
     toastEl.textContent = text;
     toastEl.className = good ? 'show good' : 'show bad';
-    toastTime = good ? 1.05 : 0.7;
+    toastTime = good ? 1.25 : 1.1;
   }
 
   function applyMute() {
@@ -312,9 +459,18 @@
 
   function playGun() {
     if (!ensureAudio() || muted) return;
-    noiseBurst(0.16, 2400, 160, 0.5);
-    tone(140, 0.15, 'sine', 0.4, 42);
-    tone(80, 0.18, 'triangle', 0.16, 36);
+    noiseBurst(0.07, 6800, 1600, 0.95);
+    noiseBurst(0.22, 2400, 120, 0.8);
+    tone(170, 0.16, 'sawtooth', 0.28, 48);
+    tone(92, 0.28, 'sine', 0.9, 32);
+    tone(480, 0.045, 'square', 0.16, 90);
+  }
+
+  function pulseShot() {
+    vibrated += 1;
+    try {
+      if (navigator.vibrate) navigator.vibrate(60);
+    } catch (err) { /* iOS and some browsers omit vibration */ }
   }
 
   function playDry() {
@@ -879,9 +1035,9 @@
     score += animal.points;
     hits += 1;
     const height = animal.kind === 'rabbit' ? 0.4 : 1.1;
-    spawnPuff(animal.root.position.x, height, animal.root.position.z, 0xe6d3b4);
+    spawnPuff(animal.root.position.x, height, animal.root.position.z, 0xfff3c8, 14);
     playThud();
-    toast(NAMES[animal.kind] + '  +' + animal.points, true);
+    toast(NAMES[animal.kind] + ' · HIT +' + animal.points, true);
   }
 
   function spook(impact) {
@@ -942,39 +1098,52 @@
     if (reloading || bolt > 0) return;
     if (ammo <= 0) {
       playDry();
+      toast('EMPTY', false);
       if (reserve > 0 && autoReload <= 0) autoReload = 0.28;
       return;
     }
     ammo -= 1;
     shots += 1;
     bolt = 0.48;
-    recoil = scoped ? 0.03 : 0.055;
-    yawKick = (Math.random() - 0.5) * 0.012;
-    rifleKick = 0.09;
-    flashLife = 0.045;
+    recoil = scoped ? 0.07 : 0.14;
+    yawKick = (Math.random() - 0.5) * 0.02;
+    rifleKick = 0.22;
+    flashLife = 0.12;
     playGun();
-    if (navigator.vibrate) navigator.vibrate(16);
+    pulseShot();
     fireBtn.classList.remove('kick');
     void fireBtn.offsetWidth;
     fireBtn.classList.add('kick');
+    if (bangEl) {
+      bangEl.classList.remove('on');
+      void bangEl.offsetWidth;
+      bangEl.classList.add('on');
+    }
+    if (ammoPanel) {
+      ammoPanel.classList.remove('shot');
+      void ammoPanel.offsetWidth;
+      ammoPanel.classList.add('shot');
+    }
 
     camera.updateMatrixWorld(true);
     raycaster.setFromCamera(zeroNdc, camera);
     const ray = raycaster.ray;
     const wood = nearestBlocker(ray);
     const hit = closestAnimal(ray);
+    let impact;
     if (hit && hit.dist < wood.dist - 0.05) {
-      const impact = hit.point.clone();
+      impact = hit.point.clone();
       killAnimal(hit.animal);
       spook(impact);
     } else {
-      const impact = hitG;
+      impact = hitG.clone();
       if (wood.point && wood.dist < 30) impact.copy(wood.point);
       else if (!ray.intersectPlane(groundPlane, impact)) impact.copy(ray.origin).addScaledVector(ray.direction, 36);
-      spawnPuff(impact.x, Math.max(0.15, impact.y), impact.z, 0xcbb892);
-      toast('Miss', false);
+      spawnPuff(impact.x, Math.max(0.15, impact.y), impact.z, 0xfff1c4, 16);
+      toast('MISS', false);
       spook(impact.clone());
     }
+    showShotPath(ray.origin, impact);
     if (ammo === 0 && reserve > 0) autoReload = 0.42;
     updateHUD();
   }
@@ -1070,14 +1239,7 @@
     endScreen.hidden = true;
     hud.hidden = true;
     fader.classList.add('on');
-    const touch = window.matchMedia('(pointer: coarse)').matches;
-    if (touch) {
-      const root = document.documentElement;
-      const req = root.requestFullscreen || root.webkitRequestFullscreen;
-      if (req) {
-        try { req.call(root); } catch (err) { /* ignore */ }
-      }
-    }
+    engageLandscape();
     setTimeout(() => {
       resetRound();
       yaw = START_YAW;
@@ -1141,8 +1303,28 @@
       rifle.visible = camera.fov > 30;
       rifle.position.z = rifleKick;
     }
-    if (flash) flash.material.opacity = flashLife > 0 ? Math.max(0, flashLife / 0.045) : 0;
+    if (flash) {
+      const flashMax = 0.12;
+      flash.material.opacity = flashLife > 0 ? Math.max(0, flashLife / flashMax) : 0;
+      const s = flashLife > 0 ? 1 + (1 - flashLife / flashMax) * 2.4 : 1;
+      flash.scale.setScalar(s);
+    }
     if (flashLife > 0) flashLife -= dt;
+    if (tracer) {
+      if (tracerLife > 0) {
+        tracerLife -= dt;
+        tracer.material.opacity = Math.max(0, tracerLife / 0.38);
+        if (tracerLife <= 0) tracer.visible = false;
+      }
+    }
+    if (mark) {
+      if (markLife > 0) {
+        markLife -= dt;
+        mark.material.opacity = Math.max(0, markLife / 1.15);
+        mark.lookAt(camera.position);
+        if (markLife <= 0) mark.visible = false;
+      }
+    }
   }
 
   function updateRange() {
@@ -1200,8 +1382,9 @@
       puff.position.addScaledVector(puff.userData.vel, dt);
       puff.userData.vel.y -= dt * 2.2;
       const t = Math.max(0, puff.userData.life / puff.userData.max);
-      puff.material.opacity = t * 0.7;
-      const s = 0.35 + (1 - t) * 1.4;
+      puff.material.opacity = t * 0.9;
+      const grow = puff.userData.grow || 1;
+      const s = grow * (0.8 + (1 - t) * 2.4);
       puff.scale.setScalar(s);
       if (puff.userData.life <= 0) {
         puff.userData.on = false;
@@ -1210,14 +1393,15 @@
     }
   }
 
-  function spawnPuff(x, y, z, color) {
-    for (let i = 0; i < 6; i++) {
+  function spawnPuff(x, y, z, color, count) {
+    const n = count || 6;
+    for (let i = 0; i < n; i++) {
       let puff = null;
       for (const item of puffPool) {
         if (!item.userData.on) { puff = item; break; }
       }
       if (!puff) {
-        if (puffPool.length > 36) return;
+        if (puffPool.length > 72) return;
         puff = new THREE.Mesh(
           geo('puff', () => new THREE.SphereGeometry(0.08, 5, 4)),
           new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false })
@@ -1229,10 +1413,84 @@
       puff.userData.on = true;
       puff.material.color.setHex(color);
       puff.position.set(x, y, z);
-      puff.userData.vel = new THREE.Vector3((Math.random() - 0.5) * 1.4, 0.5 + Math.random(), (Math.random() - 0.5) * 1.4);
-      puff.userData.max = 0.45 + Math.random() * 0.25;
+      puff.userData.vel = new THREE.Vector3((Math.random() - 0.5) * 2.2, 0.8 + Math.random() * 1.6, (Math.random() - 0.5) * 2.2);
+      puff.userData.max = 0.7 + Math.random() * 0.45;
       puff.userData.life = puff.userData.max;
+      puff.userData.grow = n > 8 ? 1.8 : 1;
     }
+  }
+
+  let tracer = null;
+  let tracerLife = 0;
+  let mark = null;
+  let markLife = 0;
+
+  function showStreak(point) {
+    if (!streakEl || !camera) return;
+    const ndc = point.clone().project(camera);
+    const box = viewBox();
+    const x = (ndc.x * 0.5 + 0.5) * box.w;
+    const y = (-ndc.y * 0.5 + 0.5) * box.h;
+    const ang = Math.atan2(y - box.h / 2, x - box.w / 2);
+    const dist = Math.max(140, Math.hypot(x - box.w / 2, y - box.h / 2));
+    streakEl.style.width = dist + 'px';
+    streakEl.style.transform = 'rotate(' + ang + 'rad)';
+    streakEl.classList.remove('on');
+    void streakEl.offsetWidth;
+    streakEl.classList.add('on');
+  }
+
+  function showShotPath(origin, point) {
+    const from = origin.clone();
+    const to = point.clone();
+    const dir = to.clone().sub(from);
+    const len = dir.length();
+    if (len > 0.3) {
+      dir.multiplyScalar(1 / len);
+      from.addScaledVector(dir, Math.min(0.9, len * 0.08));
+      const span = Math.max(0.4, from.distanceTo(to));
+      if (!tracer) {
+        tracer = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.35, 0.08, 1, 6),
+          new THREE.MeshBasicMaterial({
+            color: 0xfff6c8,
+            transparent: true,
+            opacity: 1,
+            depthWrite: false,
+            fog: false,
+            blending: THREE.AdditiveBlending,
+          })
+        );
+        scene.add(tracer);
+      }
+      tracer.position.copy(from.clone().lerp(to, 0.5));
+      tracer.scale.set(1, span, 1);
+      tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      tracer.visible = true;
+      tracer.material.opacity = 1;
+      tracerLife = 0.38;
+    }
+    if (!mark) {
+      mark = new THREE.Mesh(
+        new THREE.CircleGeometry(0.7, 18),
+        new THREE.MeshBasicMaterial({
+          color: 0xfff1c0,
+          transparent: true,
+          opacity: 1,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          fog: false,
+        })
+      );
+      scene.add(mark);
+    }
+    mark.position.copy(point);
+    mark.position.y += 0.1;
+    mark.lookAt(camera.position);
+    mark.visible = true;
+    mark.material.opacity = 1;
+    markLife = 1.15;
+    showStreak(point);
   }
 
   function grassTexture() {
@@ -1659,8 +1917,8 @@
     tube.position.set(0.22, -0.185, -0.5);
     group.add(tube);
     flash = new THREE.Mesh(
-      new THREE.SphereGeometry(0.05, 6, 5),
-      new THREE.MeshBasicMaterial({ color: 0xffe6b0, transparent: true, opacity: 0, depthWrite: false, fog: false })
+      new THREE.SphereGeometry(0.16, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xfff1c4, transparent: true, opacity: 0, depthWrite: false, fog: false })
     );
     flash.position.set(0.22, -0.24, -1.02);
     group.add(flash);
@@ -1749,6 +2007,7 @@
   function bindInput() {
     const el = renderer.domElement;
     el.addEventListener('pointerdown', (event) => {
+      if (hitsFire(event.clientX, event.clientY)) return;
       if (event.button === 2) {
         event.preventDefault();
         toggleScope();
@@ -1774,16 +2033,17 @@
     el.addEventListener('pointermove', (event) => {
       const p = pointers.get(event.pointerId);
       if (!p) return;
-      const dx = event.clientX - p.x;
-      const dy = event.clientY - p.y;
+      const sx = event.clientX - p.x;
+      const sy = event.clientY - p.y;
       p.x = event.clientX;
       p.y = event.clientY;
-      p.moved += Math.abs(dx) + Math.abs(dy);
+      p.moved += Math.abs(sx) + Math.abs(sy);
       if (p.moved > 16) clearLong();
       if (event.pointerId !== lookId || pointers.size >= 2) return;
       const sens = 0.00315 * (camera.fov / unscopedFov());
-      yaw -= dx * sens;
-      pitch -= dy * sens;
+      const delta = lookDelta(sx, sy);
+      yaw -= delta.x * sens;
+      pitch -= delta.y * sens;
       pitch = Math.max(-0.9, Math.min(0.62, pitch));
       yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
     });
@@ -1799,16 +2059,64 @@
     el.addEventListener('pointercancel', endPointer);
     el.addEventListener('contextmenu', (event) => event.preventDefault());
 
-    fireBtn.addEventListener('pointerdown', (event) => event.stopPropagation());
-    fireBtn.addEventListener('click', () => {
+    let fireAt = 0;
+    function pressFire() {
+      const now = performance.now();
+      if (now - fireAt < 90) return;
+      fireAt = now;
       ensureAudio();
       onFire();
+    }
+    function hitsFire(x, y) {
+      const el = document.elementFromPoint(x, y);
+      return !!(el && (el === fireBtn || fireBtn.contains(el)));
+    }
+    function bindPress(el, fn) {
+      let at = 0;
+      const go = (event) => {
+        if (event.button != null && event.button !== 0) return;
+        event.stopPropagation();
+        const now = performance.now();
+        if (now - at < 90) return;
+        at = now;
+        ensureAudio();
+        fn();
+        if (event.cancelable) event.preventDefault();
+      };
+      el.addEventListener('pointerdown', go);
+      el.addEventListener('touchstart', go, { passive: false });
+      el.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (performance.now() - at < 500) return;
+        ensureAudio();
+        fn();
+      });
+    }
+    bindPress(fireBtn, onFire);
+    bindPress(scopeBtn, () => toggleScope());
+    bindPress(reloadBtn, () => tryReload());
+    bindPress(startBtn, () => beginHunt());
+    bindPress(againBtn, () => beginHunt());
+    bindPress(playAnywayBtn, () => {
+      playAnyway = true;
+      try { sessionStorage.setItem('deer-hunter-portrait-ok', '1'); } catch (err) { /* ignore */ }
+      syncOrientation();
     });
-    scopeBtn.addEventListener('click', () => toggleScope());
-    reloadBtn.addEventListener('click', () => tryReload());
-    startBtn.addEventListener('click', () => beginHunt());
-    againBtn.addEventListener('click', () => beginHunt());
-    muteButtons.forEach((btn) => btn.addEventListener('click', () => toggleMute()));
+    bindPress(playSidewaysBtn, () => setTurnPref(90));
+    bindPress(turnTitleBtn, () => cycleTurn());
+    bindPress(turnHudBtn, () => cycleTurn());
+    muteButtons.forEach((btn) => bindPress(btn, () => toggleMute()));
+    window.addEventListener('touchstart', (event) => {
+      ensureAudio();
+      for (let i = 0; i < event.changedTouches.length; i++) {
+        const t = event.changedTouches[i];
+        if (hitsFire(t.clientX, t.clientY)) pressFire();
+      }
+    }, { capture: true, passive: false });
+    window.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (hitsFire(event.clientX, event.clientY)) pressFire();
+    }, true);
     tiltBtn.addEventListener('click', () => {
       if (tiltOn) {
         tiltOn = false;
@@ -1836,36 +2144,50 @@
       else if (event.code === 'Enter' && phase !== 'playing') beginHunt();
     });
 
-    playAnywayBtn.addEventListener('click', () => {
-      playAnyway = true;
-      try { sessionStorage.setItem('deer-hunter-portrait-ok', '1'); } catch (err) { /* ignore */ }
-      syncOrientation();
+    window.addEventListener('resize', scheduleSync);
+    window.addEventListener('orientationchange', scheduleSync);
+    window.addEventListener('focus', syncOrientation);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) syncOrientation();
     });
-    window.addEventListener('resize', syncOrientation);
-    window.addEventListener('orientationchange', () => {
-      syncOrientation();
-      setTimeout(syncOrientation, 80);
-      setTimeout(syncOrientation, 280);
-      setTimeout(syncOrientation, 700);
-    });
+    if (screen.orientation && screen.orientation.addEventListener) {
+      screen.orientation.addEventListener('change', scheduleSync);
+    }
+    const orientMedia = window.matchMedia('(orientation: landscape)');
+    if (orientMedia.addEventListener) orientMedia.addEventListener('change', scheduleSync);
+    else if (orientMedia.addListener) orientMedia.addListener(scheduleSync);
+    if (window.ResizeObserver) {
+      const observer = new ResizeObserver(() => syncOrientation());
+      observer.observe(document.documentElement);
+    }
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', syncOrientation);
-      window.visualViewport.addEventListener('scroll', syncOrientation);
+      window.visualViewport.addEventListener('resize', scheduleSync);
+      window.visualViewport.addEventListener('scroll', scheduleSync);
     }
     window.addEventListener('contextmenu', (event) => event.preventDefault());
     window.addEventListener('wheel', (event) => event.preventDefault(), { passive: false });
     window.addEventListener('touchmove', (event) => {
-      const card = event.target.closest && event.target.closest('#title-card, #end-card');
+      const target = event.target;
+      if (target && target.closest && target.closest('button, #title-card, #end-card')) return;
+      const card = target && target.closest && target.closest('#title-card, #end-card');
       if (card && card.scrollHeight > card.clientHeight + 4) return;
       event.preventDefault();
     }, { passive: false });
     window.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
     let lastTouchEnd = 0;
     document.addEventListener('touchend', (event) => {
+      const target = event.target;
+      if (target && target.closest && target.closest('button')) return;
       const now = Date.now();
       if (now - lastTouchEnd < 320) event.preventDefault();
       lastTouchEnd = now;
     }, { passive: false });
+  }
+
+  function lookDelta(sx, sy) {
+    if (turn === 90) return { x: -sy, y: sx };
+    if (turn === -90) return { x: sy, y: -sx };
+    return { x: sx, y: sy };
   }
 
   let last = performance.now();
@@ -1934,7 +2256,7 @@
     renderer.setClearColor(HORIZON, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.domElement.id = 'view';
-    document.body.prepend(renderer.domElement);
+    stage.prepend(renderer.domElement);
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(HIP_FOV, 1, 0.08, 400);
@@ -2015,6 +2337,7 @@
         fire: onFire,
         dump: () => ({
           phase, score, ammo, reserve, timeLeft, shots, hits, yaw, pitch, scoped,
+          turn, turnPref, landscapeLock, vibrated, android: ANDROID,
           animals: animals.map((animal) => ({
             kind: animal.kind,
             state: animal.state,

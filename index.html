@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div id="stage">
   <div id="vignette" aria-hidden="true"></div>
   <div id="reticle" aria-hidden="true"></div>
   <div id="scope" aria-hidden="true">
@@ -28,6 +29,8 @@
     <div class="dot"></div>
     <div id="range"></div>
   </div>
+  <div id="bang" aria-hidden="true"></div>
+  <div id="streak" aria-hidden="true"></div>
 
   <div id="ui">
     <section id="title" class="screen">
@@ -40,7 +43,7 @@
             </g>
             <circle cx="32" cy="34" r="6.5" fill="currentColor"/>
           </svg>
-          <button id="mute-title" type="button" class="icon-btn" aria-label="Mute sound" aria-pressed="false">
+          <button id="mute-title" type="button" class="icon-btn" aria-label="Mute sound. On iPhone the silent switch mutes the shot." title="On iPhone the silent switch mutes the shot" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 10h3l5-4v12l-5-4H4z" fill="currentColor"/>
               <path class="waves" d="M16 9.2a3.6 3.6 0 010 5.6M18.4 7a6.5 6.5 0 010 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -59,7 +62,9 @@
         <p id="boot-msg" class="fine"></p>
         <button id="start-btn" type="button" class="primary" disabled>Loading…</button>
         <p id="best-line" class="fine"></p>
+        <p class="fine sound-note">iPhone silent switch mutes the shot.</p>
         <button id="tilt-btn" type="button" class="text-btn" aria-pressed="false">Tilt aim off</button>
+        <button id="turn-title" type="button" class="text-btn" aria-pressed="false">Rotate view</button>
       </div>
     </section>
 
@@ -67,14 +72,18 @@
       <header class="topbar">
         <div class="pill score-pill"><span>Score</span> <strong id="score">0</strong></div>
         <div class="pill timer" id="timer">2:30</div>
-        <button id="mute-hud" type="button" class="icon-btn" aria-label="Mute sound" aria-pressed="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 10h3l5-4v12l-5-4H4z" fill="currentColor"/>
-            <path class="waves" d="M16 9.2a3.6 3.6 0 010 5.6M18.4 7a6.5 6.5 0 010 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-            <line class="slash" x1="5" y1="6" x2="19" y2="18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-          </svg>
-        </button>
+        <div class="top-actions">
+          <button id="turn-hud" type="button" class="icon-btn" aria-label="Rotate view" aria-pressed="false">↻</button>
+          <button id="mute-hud" type="button" class="icon-btn" aria-label="Mute sound. On iPhone the silent switch mutes the shot." title="On iPhone the silent switch mutes the shot" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 10h3l5-4v12l-5-4H4z" fill="currentColor"/>
+              <path class="waves" d="M16 9.2a3.6 3.6 0 010 5.6M18.4 7a6.5 6.5 0 010 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              <line class="slash" x1="5" y1="6" x2="19" y2="18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
       </header>
+      <p id="sound-note">Silent switch mutes</p>
       <p id="hint">Drag to aim · Scope · Time the sway</p>
       <div id="toast"></div>
       <div class="left-controls">
@@ -111,8 +120,10 @@
       <circle cx="32" cy="50" r="1.6" fill="currentColor"/>
     </svg>
     <p>Rotate your phone</p>
-    <p class="sub">Landscape fits the stand best. You can hunt upright too.</p>
+    <p class="sub">Landscape fits the stand best. If rotation lock keeps this page upright, play sideways.</p>
     <button id="play-anyway" type="button" class="primary">Play anyway</button>
+    <button id="play-sideways" type="button" class="primary ghost">Play sideways</button>
+  </div>
   </div>
 
   <noscript>Deer Hunter needs JavaScript and WebGL.</noscript>
