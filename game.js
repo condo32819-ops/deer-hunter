@@ -47,6 +47,8 @@
   const rangeEl = $('range');
   const fader = $('fader');
   const tiltBtn = $('tilt-btn');
+  const rotateEl = $('rotate');
+  const playAnywayBtn = $('play-anyway');
   const muteButtons = [$('mute-title'), $('mute-hud')];
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -83,6 +85,7 @@
   let rangeAcc = 0;
   let birdIn = 3;
   let muted = false;
+  let playAnyway = false;
   let tiltOn = false;
   let tiltBase = null;
   let tiltListening = false;
@@ -118,6 +121,7 @@
   try {
     best = Number(localStorage.getItem(BEST_KEY) || 0) || 0;
     muted = localStorage.getItem(MUTE_KEY) === '1';
+    playAnyway = sessionStorage.getItem('deer-hunter-portrait-ok') === '1';
   } catch (err) { /* private mode */ }
 
   for (let i = 0; i < MAG; i++) {
@@ -141,8 +145,82 @@
     return current + (target - current) * (1 - Math.exp(-lambda * dt));
   }
 
-  function portraitNow() {
-    return window.innerHeight > window.innerWidth;
+  function viewportSamples() {
+    const samples = [];
+    if (window.innerWidth > 0 && window.innerHeight > 0) {
+      samples.push([window.innerWidth, window.innerHeight]);
+    }
+    const vv = window.visualViewport;
+    if (vv && vv.width > 0 && vv.height > 0) samples.push([vv.width, vv.height]);
+    const doc = document.documentElement;
+    if (doc && doc.clientWidth > 0 && doc.clientHeight > 0) {
+      samples.push([doc.clientWidth, doc.clientHeight]);
+    }
+    return samples;
+  }
+
+  function viewBox() {
+    const vv = window.visualViewport;
+    let w = window.innerWidth || 0;
+    let h = window.innerHeight || 0;
+    if (vv && vv.width > 0 && vv.height > 0) {
+      w = vv.width;
+      h = vv.height;
+    }
+    const doc = document.documentElement;
+    if (doc && doc.clientWidth > 0 && doc.clientHeight > 0 && doc.clientWidth * doc.clientHeight > w * h) {
+      w = doc.clientWidth;
+      h = doc.clientHeight;
+    }
+    return { w: Math.round(w), h: Math.round(h) };
+  }
+
+  // Layout follows the box we actually draw into (visual viewport, else the
+  // larger layout viewport). The blocking hint is stricter: it appears only
+  // when every sample is clearly taller than wide. One landscape reading —
+  // inner size, visualViewport, or the layout viewport — keeps the game
+  // uncovered, even if screen.orientation or a media query would disagree.
+  function isPortraitLayout() {
+    const box = viewBox();
+    return box.h > box.w + 20;
+  }
+
+  function shouldShowHint() {
+    if (playAnyway) return false;
+    const samples = viewportSamples();
+    if (!samples.length) return false;
+    if (samples.some(([w, h]) => w >= h)) return false;
+    return samples.every(([w, h]) => h > w + 20);
+  }
+
+  function hintBlocking() {
+    return rotateEl.classList.contains('show');
+  }
+
+  function syncOrientation() {
+    const portrait = isPortraitLayout();
+    document.body.classList.toggle('portrait', portrait);
+    const show = shouldShowHint();
+    rotateEl.classList.toggle('show', show);
+    rotateEl.setAttribute('aria-hidden', show ? 'false' : 'true');
+    if (renderer && camera) resize();
+  }
+
+  function unscopedFov() {
+    const aspect = camera && camera.aspect ? camera.aspect : 1;
+    if (aspect >= 1) return HIP_FOV;
+    const horizontal = THREE.MathUtils.degToRad(78);
+    const vertical = 2 * Math.atan(Math.tan(horizontal / 2) / aspect);
+    return THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(vertical), HIP_FOV, 100);
+  }
+
+  function scopedFov() {
+    const aspect = camera && camera.aspect ? camera.aspect : 1;
+    if (aspect >= 1) return SCOPE_FOV;
+    const wideAspect = 2.05;
+    const horizontal = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(SCOPE_FOV) / 2) * wideAspect);
+    const vertical = 2 * Math.atan(Math.tan(horizontal / 2) / aspect);
+    return THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(vertical), 18, 48);
   }
 
   function plural(n, word, pluralWord) {
@@ -860,7 +938,7 @@
   }
 
   function onFire() {
-    if (phase !== 'playing' || portraitNow()) return;
+    if (phase !== 'playing' || hintBlocking()) return;
     if (reloading || bolt > 0) return;
     if (ammo <= 0) {
       playDry();
@@ -999,9 +1077,6 @@
       if (req) {
         try { req.call(root); } catch (err) { /* ignore */ }
       }
-      if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('landscape').catch(() => {});
-      }
     }
     setTimeout(() => {
       resetRound();
@@ -1022,7 +1097,7 @@
   }
 
   function updateCamera(dt) {
-    const targetFov = scoped && phase === 'playing' ? SCOPE_FOV : HIP_FOV;
+    const targetFov = scoped && phase === 'playing' ? scopedFov() : unscopedFov();
     camera.fov += (targetFov - camera.fov) * (1 - Math.exp(-10 * dt));
     if (Math.abs(camera.fov - targetFov) < 0.04) camera.fov = targetFov;
     camera.updateProjectionMatrix();
@@ -1593,13 +1668,11 @@
   }
 
   function resize() {
-    const vv = window.visualViewport;
-    const w = vv ? vv.width : window.innerWidth;
-    const h = vv ? vv.height : window.innerHeight;
-    if (!w || !h || !renderer) return;
-    camera.aspect = w / h;
+    const box = viewBox();
+    if (!box.w || !box.h || !renderer) return;
+    camera.aspect = box.w / box.h;
     camera.updateProjectionMatrix();
-    renderer.setSize(w, h, false);
+    renderer.setSize(box.w, box.h, false);
   }
 
   function aimNearest() {
@@ -1708,7 +1781,7 @@
       p.moved += Math.abs(dx) + Math.abs(dy);
       if (p.moved > 16) clearLong();
       if (event.pointerId !== lookId || pointers.size >= 2) return;
-      const sens = 0.00315 * (camera.fov / HIP_FOV);
+      const sens = 0.00315 * (camera.fov / unscopedFov());
       yaw -= dx * sens;
       pitch -= dy * sens;
       pitch = Math.max(-0.9, Math.min(0.62, pitch));
@@ -1763,8 +1836,22 @@
       else if (event.code === 'Enter' && phase !== 'playing') beginHunt();
     });
 
-    window.addEventListener('resize', resize);
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+    playAnywayBtn.addEventListener('click', () => {
+      playAnyway = true;
+      try { sessionStorage.setItem('deer-hunter-portrait-ok', '1'); } catch (err) { /* ignore */ }
+      syncOrientation();
+    });
+    window.addEventListener('resize', syncOrientation);
+    window.addEventListener('orientationchange', () => {
+      syncOrientation();
+      setTimeout(syncOrientation, 80);
+      setTimeout(syncOrientation, 280);
+      setTimeout(syncOrientation, 700);
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncOrientation);
+      window.visualViewport.addEventListener('scroll', syncOrientation);
+    }
     window.addEventListener('contextmenu', (event) => event.preventDefault());
     window.addEventListener('wheel', (event) => event.preventDefault(), { passive: false });
     window.addEventListener('touchmove', (event) => {
@@ -1788,13 +1875,13 @@
     last = now;
     if (document.hidden) return;
     time += dt;
-    const paused = portraitNow();
+    const blocked = hintBlocking();
     updateCamera(dt);
     updateAmbience(dt);
     updatePuffs(dt);
-    if (phase === 'title' || phase === 'ended') updateAnimals(dt);
-    if ((phase === 'title' || phase === 'playing') && !paused) updatePopulation(dt);
-    if (phase === 'playing' && !paused) {
+    if (phase === 'title' || phase === 'ended' || blocked) updateAnimals(dt);
+    if ((phase === 'title' || phase === 'playing') && !blocked) updatePopulation(dt);
+    if (phase === 'playing' && !blocked) {
       timeLeft -= dt;
       if (timeLeft <= 0) {
         timeLeft = 0;
@@ -1863,7 +1950,7 @@
     bindInput();
     applyMute();
     refreshBestLine();
-    resize();
+    syncOrientation();
     updateCamera(0.016);
     renderer.render(scene, camera);
     requestAnimationFrame(() => renderer.domElement.classList.add('ready'));
@@ -1886,7 +1973,12 @@
           camera.updateMatrixWorld(true);
           const dir = new THREE.Vector3();
           camera.getWorldDirection(dir);
-          return { yaw, pitch, fov: camera.fov, dir: [dir.x, dir.y, dir.z], pos: [camera.position.x, camera.position.y, camera.position.z] };
+          return {
+            yaw, pitch, fov: camera.fov, aspect: camera.aspect,
+            hip: unscopedFov(), zoom: scopedFov(), scoped,
+            dir: [dir.x, dir.y, dir.z],
+            pos: [camera.position.x, camera.position.y, camera.position.z],
+          };
         },
         aimFormula(kind) {
           const animal = animals.find((item) => item.kind === kind && item.state !== 'dead');

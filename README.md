@@ -6,7 +6,7 @@ GitHub Pages serves this folder as a static site. There is no build step.
 
 ## How to play
 
-Turn the phone sideways. Add it to your home screen if you want it fullscreen.
+Landscape is the best view. If the phone stays upright, tap **Play anyway** — the hunt still works. Add it to your home screen if you want it fullscreen.
 
 - **Drag** anywhere on the woods to look around
 - **Scope** (button, long-press, or two fingers) for a zoomed rifle scope with a little sway
