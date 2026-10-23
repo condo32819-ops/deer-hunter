@@ -6,7 +6,7 @@
   const ROUND_SECONDS = params.get('quick') === '1' ? 12 : 150;
   const MAG = 5;
   const RESERVE_START = 10;
-  const MAX_ANIMALS = 7;
+  const MAX_ANIMALS = 12;
   const HIP_FOV = 52;
   const SCOPE_FOV = 15;
   const START_YAW = -0.08;
@@ -16,11 +16,11 @@
   const BEST_KEY = 'deer-hunter-best';
   const MUTE_KEY = 'deer-hunter-muted';
   const TURN_KEY = 'deer-hunter-turn';
-  const POINTS = { buck: 150, doe: 100, boar: 120, rabbit: 50, blue: 400, piglet: 80 };
-  const WALK = { buck: 1.35, doe: 1.55, boar: 1.15, rabbit: 2.35, blue: 2.4, piglet: 2.7 };
-  const FLEE = { buck: 7.2, doe: 7.6, boar: 6.2, rabbit: 9.2, blue: 11.4, piglet: 8.6 };
-  const DASH = { blue: 14.2, piglet: 9.8 };
-  const NAMES = { buck: 'Buck', doe: 'Doe', boar: 'Boar', rabbit: 'Cottontail', blue: 'Blue deer', piglet: 'Piglet' };
+  const POINTS = { buck: 150, doe: 100, boar: 120, rabbit: 50, blue: 400, piglet: 80, giraffe: 200, elephant: 250 };
+  const WALK = { buck: 1.35, doe: 1.55, boar: 1.15, rabbit: 2.35, blue: 2.4, piglet: 1.6, giraffe: 1.05, elephant: 0.82 };
+  const FLEE = { buck: 7.2, doe: 7.6, boar: 6.2, rabbit: 9.2, blue: 11.4, piglet: 4.4, giraffe: 2.4, elephant: 1.7 };
+  const DASH = { blue: 14.2, piglet: 4.9 };
+  const NAMES = { buck: 'Buck', doe: 'Doe', boar: 'Boar', rabbit: 'Cottontail', blue: 'Blue deer', piglet: 'Piglet', giraffe: 'Giraffe', elephant: 'Elephant' };
 
   const $ = (id) => document.getElementById(id);
   const titleScreen = $('title');
@@ -104,7 +104,7 @@
   let tiltBase = null;
   let tiltListening = false;
 
-  const harvest = { buck: 0, doe: 0, boar: 0, rabbit: 0, blue: 0, piglet: 0 };
+  const harvest = { buck: 0, doe: 0, boar: 0, rabbit: 0, blue: 0, piglet: 0, giraffe: 0, elephant: 0 };
   const animals = [];
   const trees = [];
   const clouds = [];
@@ -782,6 +782,148 @@
     return { root, tilt, bob, head, legs, tail, ears, earBase };
   }
 
+  function buildGiraffe() {
+    const root = new THREE.Group();
+    const tilt = new THREE.Group();
+    const bob = new THREE.Group();
+    root.add(tilt);
+    tilt.add(bob);
+    const hide = lambert(0xd7a24a);
+    const patch = lambert(0x6a3b22);
+    const pale = lambert(0xf0d7a4);
+    const dark = lambert(0x3a2418);
+    const hoof = lambert(0x4a3424);
+
+    const body = addMesh(bob, geo('girBody', () => new THREE.CapsuleGeometry(0.32, 0.95, 3, 6)), hide, 0, 1.72, 0.05);
+    body.rotation.x = Math.PI / 2;
+    const patchGeo = geo('girPatch', () => new THREE.SphereGeometry(0.1, 5, 4));
+    [[0.24, 1.86, 0.15], [-0.22, 1.62, -0.12], [0.08, 1.78, 0.42], [-0.16, 1.95, 0.28], [0.18, 1.58, -0.22]].forEach(([x, y, z]) => {
+      const spot = addMesh(bob, patchGeo, patch, x, y, z);
+      spot.scale.set(1.35, 0.72, 1.05);
+    });
+
+    const neck = addMesh(bob, geo('girNeck', () => new THREE.CapsuleGeometry(0.11, 1.65, 3, 5)), hide, 0, 2.95, -0.62);
+    neck.rotation.x = -0.42;
+    [[0.09, 2.55, -0.48], [-0.08, 3.15, -0.72], [0.06, 3.55, -0.9]].forEach(([x, y, z]) => {
+      const spot = addMesh(bob, patchGeo, patch, x, y, z);
+      spot.scale.set(0.7, 0.85, 0.7);
+    });
+    const maneGeo = geo('girMane', () => new THREE.BoxGeometry(0.045, 0.16, 0.07));
+    for (let i = 0; i < 5; i++) {
+      addMesh(bob, maneGeo, dark, 0, 2.35 + i * 0.32, -0.4 - i * 0.1);
+    }
+
+    const head = new THREE.Group();
+    head.position.set(0, 3.82, -1.02);
+    bob.add(head);
+    const skull = addMesh(head, geo('girHead', () => new THREE.SphereGeometry(0.16, 7, 6)), hide, 0, 0.02, -0.04);
+    skull.scale.set(0.85, 0.72, 1.2);
+    const snout = addMesh(head, geo('girSnout', () => new THREE.CapsuleGeometry(0.055, 0.18, 2, 5)), pale, 0, -0.02, -0.22);
+    snout.rotation.x = Math.PI / 2;
+    addMesh(head, geo('girNose', () => new THREE.SphereGeometry(0.035, 5, 4)), dark, 0, -0.01, -0.34);
+    const ears = [];
+    const earBase = [];
+    [-1, 1].forEach((s) => {
+      const horn = addMesh(head, geo('girHorn', () => new THREE.CylinderGeometry(0.018, 0.026, 0.16, 5)), dark, s * 0.07, 0.16, 0.02);
+      horn.rotation.z = s * -0.12;
+      addMesh(head, geo('girHornTip', () => new THREE.SphereGeometry(0.032, 5, 4)), dark, s * 0.08, 0.26, 0.02);
+      const ear = addMesh(head, geo('girEar', () => new THREE.BoxGeometry(0.05, 0.12, 0.02)), hide, s * 0.14, 0.06, 0.02);
+      ear.rotation.z = s * -0.7;
+      ears.push(ear);
+      earBase.push(ear.rotation.z);
+      addMesh(head, geo('girEye', () => new THREE.SphereGeometry(0.02, 5, 4)), dark, s * 0.07, 0.02, -0.14);
+    });
+
+    const legs = [];
+    const legGeo = geo('girLeg', () => new THREE.CapsuleGeometry(0.045, 1.15, 2, 4));
+    [[-0.16, -0.32], [0.16, -0.32], [-0.16, 0.42], [0.16, 0.42]].forEach(([x, z]) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 1.42, z);
+      const leg = new THREE.Mesh(legGeo, hoof);
+      leg.position.y = -0.62;
+      pivot.add(leg);
+      bob.add(pivot);
+      legs.push(pivot);
+    });
+
+    const tail = new THREE.Group();
+    tail.position.set(0, 1.85, 0.62);
+    const flag = addMesh(tail, geo('girTail', () => new THREE.SphereGeometry(0.07, 5, 4)), dark, 0, -0.28, 0.08);
+    flag.scale.set(0.8, 1.4, 0.8);
+    bob.add(tail);
+
+    root.add(makeShadow(1.05));
+    root.scale.setScalar(1.12);
+    return { root, tilt, bob, head, legs, tail, ears, earBase, trunk: null };
+  }
+
+  function buildElephant() {
+    const root = new THREE.Group();
+    const tilt = new THREE.Group();
+    const bob = new THREE.Group();
+    root.add(tilt);
+    tilt.add(bob);
+    const gray = lambert(0x8e9294);
+    const dark = lambert(0x5e6468);
+    const earMat = lambert(0xb7b3aa);
+    const inner = lambert(0xc9a59a);
+    const tuskMat = lambert(0xf4f1e8);
+
+    const body = addMesh(bob, geo('eleBody', () => new THREE.SphereGeometry(0.72, 8, 6)), gray, 0, 1.25, 0.05);
+    body.scale.set(1.05, 0.82, 1.35);
+    addMesh(bob, geo('eleBelly', () => new THREE.SphereGeometry(0.42, 6, 5)), lambert(0xa7aaa8), 0, 0.95, 0.05).scale.set(0.9, 0.45, 1.2);
+
+    const head = new THREE.Group();
+    head.position.set(0, 1.45, -0.95);
+    bob.add(head);
+    const skull = addMesh(head, geo('eleHead', () => new THREE.SphereGeometry(0.42, 8, 6)), gray, 0, 0.05, -0.08);
+    skull.scale.set(1.05, 0.9, 1.05);
+    const ears = [];
+    const earBase = [];
+    [-1, 1].forEach((s) => {
+      const ear = addMesh(head, geo('eleEar', () => new THREE.SphereGeometry(0.4, 6, 5)), earMat, s * 0.48, 0.08, 0.02);
+      ear.scale.set(0.28, 1.05, 0.72);
+      ear.rotation.z = s * -0.35;
+      ears.push(ear);
+      earBase.push(ear.rotation.z);
+      const flap = addMesh(head, geo('eleInner', () => new THREE.SphereGeometry(0.24, 5, 4)), inner, s * 0.52, 0.02, -0.02);
+      flap.scale.set(0.16, 0.7, 0.4);
+      addMesh(head, geo('eleEye', () => new THREE.SphereGeometry(0.035, 5, 4)), dark, s * 0.18, 0.08, -0.38);
+      const tusk = addMesh(head, geo('eleTusk', () => new THREE.ConeGeometry(0.035, 0.28, 5)), tuskMat, s * 0.12, -0.22, -0.42);
+      tusk.rotation.x = 1.15;
+      tusk.rotation.z = s * 0.18;
+    });
+
+    const trunk = new THREE.Group();
+    trunk.position.set(0, 0.02, -0.42);
+    head.add(trunk);
+    const segGeo = geo('eleTrunk', () => new THREE.CapsuleGeometry(0.07, 0.26, 2, 5));
+    for (let i = 0; i < 3; i++) {
+      const seg = addMesh(trunk, segGeo, i === 2 ? dark : gray, 0, -0.16 - i * 0.24, -0.02 - i * 0.06);
+      seg.rotation.x = 0.45 + i * 0.28;
+      seg.scale.setScalar(1 - i * 0.16);
+    }
+
+    const legs = [];
+    const legGeo = geo('eleLeg', () => new THREE.CylinderGeometry(0.11, 0.13, 0.72, 6));
+    [[-0.32, -0.35], [0.32, -0.35], [-0.34, 0.48], [0.34, 0.48]].forEach(([x, z]) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 0.78, z);
+      const leg = new THREE.Mesh(legGeo, gray);
+      leg.position.y = -0.36;
+      pivot.add(leg);
+      bob.add(pivot);
+      legs.push(pivot);
+    });
+
+    const tail = addMesh(bob, geo('eleTail', () => new THREE.CapsuleGeometry(0.03, 0.28, 2, 4)), dark, 0, 1.15, 0.95);
+    tail.rotation.x = 0.8;
+
+    root.add(makeShadow(1.35));
+    root.scale.setScalar(1.28);
+    return { root, tilt, bob, head, legs, tail, ears, earBase, trunk };
+  }
+
   function buildBoar() {
     const root = new THREE.Group();
     const tilt = new THREE.Group();
@@ -902,6 +1044,8 @@
     if (kind === 'rabbit') return buildRabbit();
     if (kind === 'blue') return buildBlueDeer();
     if (kind === 'piglet') return buildPiglet();
+    if (kind === 'giraffe') return buildGiraffe();
+    if (kind === 'elephant') return buildElephant();
     return buildDeer(kind === 'buck');
   }
 
@@ -942,6 +1086,8 @@
       flee: FLEE[kind],
       dash: DASH[kind] || 0,
       path: opts.path ? opts.path.map((point) => ({ x: point.x, z: point.z })) : null,
+      herd: !!opts.herd,
+      nextTarget: null,
       fallSide: 1,
       deadFor: 0,
     };
@@ -982,14 +1128,61 @@
     return n;
   }
 
+  function slotsOpen() {
+    return MAX_ANIMALS - activeCount();
+  }
+
   function pickKind() {
+    const open = slotsOpen();
     if (Math.random() < 0.08 && countKind('blue') === 0) return 'blue';
-    if (Math.random() < 0.14 && countKind('piglet') === 0) return 'piglet';
+    if (Math.random() < 0.12 && countKind('piglet') === 0) return 'piglet';
+    if (Math.random() < 0.1 && countKind('giraffe') === 0 && open >= 1) return 'giraffe';
+    if (Math.random() < 0.08 && countKind('elephant') === 0 && open >= 1) return 'elephant';
     const roll = Math.random();
     if (roll < 0.22) return 'buck';
     if (roll < 0.52) return 'doe';
     if (roll < 0.74) return 'boar';
     return 'rabbit';
+  }
+
+  function herdSize(kind, open) {
+    let want;
+    if (kind === 'giraffe') want = Math.random() < 0.38 ? 1 : 3 + Math.floor(Math.random() * 3);
+    else {
+      const roll = Math.random();
+      want = roll < 0.2 ? 1 : roll < 0.6 ? 2 : 3;
+    }
+    return Math.max(0, Math.min(want, open));
+  }
+
+  function spawnHerd(kind, forcedCount) {
+    const count = forcedCount ? Math.min(forcedCount, slotsOpen()) : herdSize(kind, slotsOpen());
+    if (count < 1) return 0;
+    const left = Math.random() < 0.5;
+    const dir = left ? 1 : -1;
+    const z0 = -34 - Math.random() * 28;
+    const startX = left ? -56 : 56;
+    const endX = -startX;
+    const midX = (Math.random() - 0.5) * 10;
+    const along = kind === 'elephant' ? 4.6 : 3.3;
+    const aside = kind === 'elephant' ? 2.8 : 2.15;
+    for (let i = 0; i < count; i++) {
+      const row = Math.floor(i / 2);
+      const col = i % 2 === 0 ? -1 : 1;
+      const back = -dir * row * along;
+      const side = col * aside * (i === 0 ? 0.15 : 1);
+      const x = startX + back;
+      const z = z0 + side;
+      placeAnimal(kind, {
+        x,
+        z,
+        state: 'walk',
+        herd: true,
+        target: { x: midX + back * 0.12, z },
+        path: [{ x: endX + back * 0.08, z: z + (Math.random() - 0.5) * 1.2 }],
+      });
+    }
+    return count;
   }
 
   function spawnDasher(kind) {
@@ -1065,9 +1258,17 @@
 
   function animateAnimal(animal, dt) {
     const moving = animal.state === 'walk' || animal.state === 'flee' || animal.state === 'dash';
-    const freq = animal.state === 'dash' ? 16 : animal.state === 'flee' ? 13 : animal.state === 'walk' ? 6.5 : 1.6;
+    let freq = animal.state === 'dash' ? 16 : animal.state === 'flee' ? 13 : animal.state === 'walk' ? 6.5 : 1.6;
+    let amp = animal.state === 'dash' ? 0.95 : animal.state === 'flee' ? 0.8 : animal.state === 'walk' ? 0.4 : 0.05;
+    if (animal.kind === 'elephant' && animal.state === 'walk') {
+      freq = 2.1;
+      amp = 0.18;
+    } else if (animal.kind === 'giraffe' && animal.state === 'walk') {
+      freq = 2.6;
+      amp = 0.28;
+    }
+    if (animal.kind === 'piglet' && animal.state === 'dash') freq = 9;
     animal.phase += dt * freq;
-    const amp = animal.state === 'dash' ? 0.95 : animal.state === 'flee' ? 0.8 : animal.state === 'walk' ? 0.4 : 0.05;
     const swing = Math.sin(animal.phase) * amp;
     if (animal.legs.length >= 4) {
       animal.legs[0].rotation.x = swing;
@@ -1076,14 +1277,18 @@
       animal.legs[2].rotation.x = -swing;
     }
     let headTarget = -0.1;
-    if (animal.state === 'graze') {
+    if (animal.state === 'graze' || animal.state === 'rest') {
       if (animal.kind === 'boar') headTarget = -0.7;
       else if (animal.kind === 'piglet') headTarget = -0.35;
+      else if (animal.kind === 'giraffe') headTarget = -0.28;
+      else if (animal.kind === 'elephant') headTarget = -0.16;
       else headTarget = -0.95;
     } else if (animal.state === 'alert') headTarget = 0.42;
+    else if (animal.kind === 'giraffe' || animal.kind === 'elephant') headTarget = 0.02;
     else if (animal.state === 'flee' || animal.state === 'dash') headTarget = 0.18;
     animal.head.rotation.x = damp(animal.head.rotation.x, headTarget, 6, dt);
-    if (animal.tail && animal.kind !== 'boar' && animal.kind !== 'piglet') {
+    if (animal.trunk) animal.trunk.rotation.x = -0.2 + Math.sin(time * 1.3 + animal.phase) * 0.14;
+    if (animal.tail && animal.kind !== 'boar' && animal.kind !== 'piglet' && animal.kind !== 'elephant' && animal.kind !== 'giraffe') {
       const tailTarget = animal.state === 'flee' || animal.state === 'dash' ? -1.05 : -0.2;
       animal.tail.rotation.x = damp(animal.tail.rotation.x, tailTarget, 8, dt);
     }
@@ -1122,19 +1327,42 @@
     if (animal.state === 'alert') {
       animal.timer -= dt;
       if (animal.timer <= 0) {
-        animal.state = 'flee';
-        setFleeTarget(animal);
+        if (animal.herd) {
+          if (animal.nextTarget) {
+            animal.target = animal.nextTarget;
+            animal.nextTarget = null;
+          }
+          animal.state = 'walk';
+        } else {
+          animal.state = 'flee';
+          setFleeTarget(animal);
+        }
+      }
+    } else if (animal.state === 'rest') {
+      animal.timer -= dt;
+      if (animal.timer <= 0) {
+        if (animal.path && animal.path.length) {
+          animal.target = animal.path.shift();
+          animal.state = 'dash';
+        } else {
+          removeAnimal(animal);
+          return;
+        }
       }
     } else if (animal.state === 'graze') {
       animal.timer -= dt;
       if (animal.timer <= 0) {
         animal.state = 'walk';
-        animal.target = randomMeadowPoint();
+        animal.target = animal.nextTarget || randomMeadowPoint();
+        animal.nextTarget = null;
       }
     } else if (animal.state === 'dash') {
       const arrived = moveToward(animal, dt, animal.dash);
       if (arrived) {
-        if (animal.path && animal.path.length) animal.target = animal.path.shift();
+        if (animal.kind === 'piglet') {
+          animal.state = 'rest';
+          animal.timer = 1.8 + Math.random() * 1.7;
+        } else if (animal.path && animal.path.length) animal.target = animal.path.shift();
         else {
           removeAnimal(animal);
           return;
@@ -1150,6 +1378,15 @@
             return;
           }
           setFleeTarget(animal);
+        } else if (animal.herd) {
+          if (animal.path && animal.path.length) {
+            animal.nextTarget = animal.path.shift();
+            animal.state = 'graze';
+            animal.timer = animal.kind === 'elephant' ? 2.4 + Math.random() * 2.2 : 1.7 + Math.random() * 1.8;
+          } else {
+            removeAnimal(animal);
+            return;
+          }
         } else {
           animal.state = 'graze';
           animal.timer = 3.2 + Math.random() * 4.5;
@@ -1178,7 +1415,11 @@
     if (spawnCooldown <= 0) {
       const kind = pickKind();
       if (kind === 'blue' || kind === 'piglet') spawnDasher(kind);
-      else placeAnimal(kind, { x: spot.x, z: spot.z, state: 'walk', target: randomMeadowPoint() });
+      else if (kind === 'giraffe' || kind === 'elephant') spawnHerd(kind);
+      else {
+        const spot = sampleEdge();
+        placeAnimal(kind, { x: spot.x, z: spot.z, state: 'walk', target: randomMeadowPoint() });
+      }
       spawnCooldown = 3.2 + Math.random() * 3.4;
     }
   }
@@ -1191,7 +1432,7 @@
     harvest[animal.kind] += 1;
     score += animal.points;
     hits += 1;
-    const height = animal.kind === 'rabbit' || animal.kind === 'piglet' ? 0.35 : 1.1;
+    const height = animal.kind === 'rabbit' || animal.kind === 'piglet' ? 0.35 : animal.kind === 'giraffe' ? 2.4 : animal.kind === 'elephant' ? 1.55 : 1.1;
     spawnPuff(animal.root.position.x, height, animal.root.position.z, 0xfff3c8, 14);
     playThud();
     toast(NAMES[animal.kind] + ' · HIT +' + animal.points, true);
@@ -1201,6 +1442,14 @@
     for (const animal of animals) {
       if (animal.state === 'dead' || animal.state === 'flee' || animal.state === 'dash') continue;
       if (animal.kind === 'blue' || animal.kind === 'piglet') continue;
+      if (animal.herd) {
+        const near = Math.hypot(animal.root.position.x - impact.x, animal.root.position.z - impact.z);
+        if (near < 22 && animal.state !== 'alert') {
+          animal.state = 'alert';
+          animal.timer = 0.7 + Math.random() * 0.45;
+        }
+        continue;
+      }
       const dImpact = Math.hypot(animal.root.position.x - impact.x, animal.root.position.z - impact.z);
       const dPlayer = Math.hypot(animal.root.position.x - CAM.x, animal.root.position.z - CAM.z);
       if (dImpact < 11) {
@@ -1358,6 +1607,8 @@
       plural(harvest.boar, 'boar'),
       plural(harvest.piglet, 'piglet'),
       plural(harvest.rabbit, 'rabbit'),
+      plural(harvest.giraffe, 'giraffe'),
+      plural(harvest.elephant, 'elephant'),
     ].join('   ·   ');
     const acc = shots ? Math.round((hits / shots) * 100) : 0;
     endStats.textContent = plural(shots, 'shot') + '   ·   ' + plural(hits, 'hit') + '   ·   ' + acc + '% accuracy';
@@ -1389,6 +1640,8 @@
     harvest.rabbit = 0;
     harvest.blue = 0;
     harvest.piglet = 0;
+    harvest.giraffe = 0;
+    harvest.elephant = 0;
     clearAnimals();
     spawnOpening();
     spawnCooldown = 4.5;
@@ -1836,6 +2089,7 @@
     });
 
     buildTrees();
+    buildSavanna();
     buildPond();
     buildGrass();
     buildStand();
@@ -1932,6 +2186,34 @@
       bush.scale.setScalar(0.8 + Math.random() * 0.7);
       scene.add(bush);
     }
+  }
+
+  function buildSavanna() {
+    const disc = new THREE.Mesh(
+      new THREE.CircleGeometry(48, 28),
+      new THREE.MeshLambertMaterial({ color: 0xc6b07a, transparent: true, opacity: 0.42 })
+    );
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.set(4, 0.04, -64);
+    scene.add(disc);
+
+    const trunkGeo = geo('acaTrunk', () => new THREE.CylinderGeometry(0.12, 0.2, 2.5, 6));
+    const crownGeo = geo('acaCrown', () => new THREE.SphereGeometry(1, 7, 5));
+    const trunkMat = lambert(0x6b4a32);
+    const crownMat = lambert(0x7d9a3e);
+    [[-30, -50], [26, -54], [-10, -78], [34, -76], [-38, -72], [16, -90], [42, -60]].forEach(([x, z], i) => {
+      const tree = new THREE.Group();
+      const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+      trunk.position.y = 1.25;
+      tree.add(trunk);
+      const crown = new THREE.Mesh(crownGeo, crownMat);
+      crown.position.y = 2.75;
+      crown.scale.set(2.15, 0.36, 2.15);
+      tree.add(crown);
+      tree.position.set(x, 0, z);
+      tree.scale.setScalar(1.05 + (i % 3) * 0.16);
+      scene.add(tree);
+    });
   }
 
   function buildPond() {
@@ -2525,6 +2807,20 @@
           const spot = kind === 'piglet' ? { x: 0.72, z: -6.6 } : { x: 2.2, z: -13 };
           placeAnimal(kind, { x: spot.x, z: spot.z, state: 'alert', broadside: true, timer: 90 });
           return { kind, x: spot.x, z: spot.z };
+        },
+        spawnGroup(kind, count) {
+          for (let i = animals.length - 1; i >= 0; i--) {
+            if (animals[i].kind === kind) removeAnimal(animals[i]);
+          }
+          const n = spawnHerd(kind, count || 0);
+          return {
+            n,
+            animals: animals.filter((animal) => animal.kind === kind).map((animal) => ({
+              x: +animal.root.position.x.toFixed(2),
+              z: +animal.root.position.z.toFixed(2),
+              state: animal.state,
+            })),
+          };
         },
         spawnDash(kind) {
           for (let i = animals.length - 1; i >= 0; i--) {

@@ -746,6 +746,19 @@ body.portrait #fire {
 
 body.portrait #toast { font-size: 22px; }
 
+@media (max-height: 480px) {
+  #title-card { padding: 8px 12px; }
+  .mark { width: 42px; height: 30px; }
+  h1 { font-size: 28px; margin: 0; }
+  .kicker { margin: 0; }
+  .lede { font-size: 13px; }
+  .legend { margin-top: 4px; line-height: 1.3; }
+  .chips { margin: 6px 0; }
+  .fine { margin-top: 4px; }
+  .primary { height: 42px; margin-top: 6px; }
+  .text-btn { margin-top: 2px; padding: 3px 8px; }
+}
+
 @media (max-height: 340px) {
   h1 { font-size: 28px; }
   .lede, .legend { font-size: 12px; }
