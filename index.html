@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#142016">
+  <meta name="description" content="A short first-person hunting game for phones. Aim, scope, and take the morning stand.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Deer Hunter">
+  <meta name="format-detection" content="telephone=no">
+  <title>Deer Hunter</title>
+  <link rel="icon" href="favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="vignette" aria-hidden="true"></div>
+  <div id="reticle" aria-hidden="true"></div>
+  <div id="scope" aria-hidden="true">
+    <div class="ring"></div>
+    <div class="tick l"></div>
+    <div class="tick r"></div>
+    <div class="tick u"></div>
+    <div class="tick d"></div>
+    <div class="dot"></div>
+    <div id="range"></div>
+  </div>
+
+  <div id="ui">
+    <section id="title" class="screen">
+      <div class="card" id="title-card">
+        <div class="card-top">
+          <svg class="mark" viewBox="0 0 64 48" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <path d="M24 30c0-8 2-12 2-18M24 16c-4-2-7-2-10 0M24 12c-3-4-4-7-3-10M24 20c4-1 7 0 9 3"/>
+              <path d="M40 30c0-8-2-12-2-18M40 16c4-2 7-2 10 0M40 12c3-4 4-7 3-10M40 20c-4-1-7 0-9 3"/>
+            </g>
+            <circle cx="32" cy="34" r="6.5" fill="currentColor"/>
+          </svg>
+          <button id="mute-title" type="button" class="icon-btn" aria-label="Mute sound" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 10h3l5-4v12l-5-4H4z" fill="currentColor"/>
+              <path class="waves" d="M16 9.2a3.6 3.6 0 010 5.6M18.4 7a6.5 6.5 0 010 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              <line class="slash" x1="5" y1="6" x2="19" y2="18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <p class="kicker">A morning stand</p>
+        <h1>Deer Hunter</h1>
+        <p class="lede">Two and a half quiet minutes. Deer, boar, and rabbits are already in the meadow.</p>
+        <ul class="chips">
+          <li>Drag to aim</li>
+          <li>Scope</li>
+          <li>Fire</li>
+        </ul>
+        <p id="boot-msg" class="fine"></p>
+        <button id="start-btn" type="button" class="primary" disabled>Loading…</button>
+        <p id="best-line" class="fine"></p>
+        <button id="tilt-btn" type="button" class="text-btn" aria-pressed="false">Tilt aim off</button>
+      </div>
+    </section>
+
+    <section id="hud" class="screen" hidden>
+      <header class="topbar">
+        <div class="pill score-pill"><span>Score</span> <strong id="score">0</strong></div>
+        <div class="pill timer" id="timer">2:30</div>
+        <button id="mute-hud" type="button" class="icon-btn" aria-label="Mute sound" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 10h3l5-4v12l-5-4H4z" fill="currentColor"/>
+            <path class="waves" d="M16 9.2a3.6 3.6 0 010 5.6M18.4 7a6.5 6.5 0 010 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <line class="slash" x1="5" y1="6" x2="19" y2="18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </header>
+      <p id="hint">Drag to aim · Scope · Time the sway</p>
+      <div id="toast"></div>
+      <div class="left-controls">
+        <div class="ammo-panel">
+          <span id="pips"></span>
+          <span id="reserve">10</span>
+        </div>
+        <button id="reload" type="button">Reload</button>
+      </div>
+      <button id="scope-btn" type="button" aria-pressed="false">
+        <span class="scope-ico" aria-hidden="true"></span>
+        Scope
+      </button>
+      <button id="fire" type="button">Fire</button>
+    </section>
+
+    <section id="end" class="screen" hidden>
+      <div class="card end-card" id="end-card">
+        <p class="kicker">The stand goes quiet</p>
+        <h2 id="end-reason">Time's up</h2>
+        <p class="big-score" id="end-score">0</p>
+        <p id="end-best" class="fine"></p>
+        <p id="end-harvest"></p>
+        <p id="end-stats" class="fine"></p>
+        <button id="again-btn" type="button" class="primary">Hunt again</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="fader" aria-hidden="true"></div>
+  <div id="rotate">
+    <svg class="phone" viewBox="0 0 64 64" aria-hidden="true">
+      <rect x="20" y="8" width="24" height="48" rx="4" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <circle cx="32" cy="50" r="1.6" fill="currentColor"/>
+    </svg>
+    <p>Rotate your phone</p>
+    <p class="sub">The hunt is played in landscape.</p>
+  </div>
+
+  <noscript>Deer Hunter needs JavaScript and WebGL.</noscript>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
