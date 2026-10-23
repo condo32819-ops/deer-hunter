@@ -6,7 +6,7 @@
   const ROUND_SECONDS = params.get('quick') === '1' ? 12 : 150;
   const MAG = 5;
   const RESERVE_START = 10;
-  const MAX_ANIMALS = 5;
+  const MAX_ANIMALS = 7;
   const HIP_FOV = 52;
   const SCOPE_FOV = 15;
   const START_YAW = -0.08;
@@ -16,10 +16,11 @@
   const BEST_KEY = 'deer-hunter-best';
   const MUTE_KEY = 'deer-hunter-muted';
   const TURN_KEY = 'deer-hunter-turn';
-  const POINTS = { buck: 150, doe: 100, boar: 120, rabbit: 50 };
-  const WALK = { buck: 1.35, doe: 1.55, boar: 1.15, rabbit: 2.35 };
-  const FLEE = { buck: 7.2, doe: 7.6, boar: 6.2, rabbit: 9.2 };
-  const NAMES = { buck: 'Buck', doe: 'Doe', boar: 'Boar', rabbit: 'Cottontail' };
+  const POINTS = { buck: 150, doe: 100, boar: 120, rabbit: 50, blue: 400, piglet: 80 };
+  const WALK = { buck: 1.35, doe: 1.55, boar: 1.15, rabbit: 2.35, blue: 2.4, piglet: 2.7 };
+  const FLEE = { buck: 7.2, doe: 7.6, boar: 6.2, rabbit: 9.2, blue: 11.4, piglet: 8.6 };
+  const DASH = { blue: 14.2, piglet: 9.8 };
+  const NAMES = { buck: 'Buck', doe: 'Doe', boar: 'Boar', rabbit: 'Cottontail', blue: 'Blue deer', piglet: 'Piglet' };
 
   const $ = (id) => document.getElementById(id);
   const titleScreen = $('title');
@@ -103,7 +104,7 @@
   let tiltBase = null;
   let tiltListening = false;
 
-  const harvest = { buck: 0, doe: 0, boar: 0, rabbit: 0 };
+  const harvest = { buck: 0, doe: 0, boar: 0, rabbit: 0, blue: 0, piglet: 0 };
   const animals = [];
   const trees = [];
   const clouds = [];
@@ -603,6 +604,18 @@
     return matCache[key];
   }
 
+  function glow(hex, emissive, intensity) {
+    const key = 'g' + hex + ':' + emissive + ':' + intensity;
+    if (!matCache[key]) {
+      matCache[key] = new THREE.MeshLambertMaterial({
+        color: hex,
+        emissive: emissive,
+        emissiveIntensity: intensity,
+      });
+    }
+    return matCache[key];
+  }
+
   function addMesh(parent, geometry, material, x, y, z) {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(x, y, z);
@@ -610,18 +623,28 @@
     return mesh;
   }
 
-  function buildDeer(isBuck) {
+  function buildDeer(isBuck, tint) {
     const root = new THREE.Group();
     const tilt = new THREE.Group();
     const bob = new THREE.Group();
     root.add(tilt);
     tilt.add(bob);
-    const bodyMat = lambert(isBuck ? 0xb8743c : 0xc48a4e);
-    const bellyMat = lambert(0xf0e2c8);
-    const headMat = lambert(isBuck ? 0x9a6236 : 0xa86e3c);
-    const legMat = lambert(0x7a4e30);
-    const tailMat = lambert(0xf7f4ee);
-    const dark = lambert(0x1c140f);
+    const colors = tint || {
+      body: isBuck ? 0xb8743c : 0xc48a4e,
+      belly: 0xf0e2c8,
+      head: isBuck ? 0x9a6236 : 0xa86e3c,
+      leg: 0x7a4e30,
+      tail: 0xf7f4ee,
+      dark: 0x1c140f,
+      scale: isBuck ? 1.22 : 1.1,
+    };
+    const coat = (hex) => (tint && tint.glow ? glow(hex, tint.glow, tint.glowAmount || 0.6) : lambert(hex));
+    const bodyMat = coat(colors.body);
+    const bellyMat = lambert(colors.belly);
+    const headMat = coat(colors.head);
+    const legMat = coat(colors.leg);
+    const tailMat = lambert(colors.tail);
+    const dark = lambert(colors.dark);
 
     const body = addMesh(bob, geo('deerBody', () => new THREE.CapsuleGeometry(0.27, 0.95, 3, 8)), bodyMat, 0, 1.08, 0.02);
     body.rotation.x = Math.PI / 2;
@@ -654,7 +677,7 @@
       addMesh(head, geo('eye', () => new THREE.SphereGeometry(0.022, 6, 5)), dark, s * 0.07, 0.03, -0.16);
     });
 
-    if (isBuck) {
+    if (isBuck && !tint) {
       const antler = lambert(0xe7d7b4);
       const beamGeo = geo('beam', () => new THREE.CylinderGeometry(0.018, 0.028, 0.42, 4));
       const tineGeo = geo('tine', () => new THREE.CylinderGeometry(0.012, 0.018, 0.2, 4));
@@ -687,7 +710,75 @@
     bob.add(tail);
 
     root.add(makeShadow(0.85));
-    root.scale.setScalar(isBuck ? 1.22 : 1.1);
+    root.scale.setScalar(colors.scale);
+    return { root, tilt, bob, head, legs, tail, ears, earBase };
+  }
+
+  function buildBlueDeer() {
+    return buildDeer(false, {
+      body: 0x3aa6ff,
+      belly: 0xd7f4ff,
+      head: 0x2f8cff,
+      leg: 0x1f78f0,
+      tail: 0xf4fbff,
+      dark: 0x062044,
+      scale: 1.2,
+      glow: 0x1a5cff,
+      glowAmount: 0.72,
+    });
+  }
+
+  function buildPiglet() {
+    const root = new THREE.Group();
+    const tilt = new THREE.Group();
+    const bob = new THREE.Group();
+    root.add(tilt);
+    tilt.add(bob);
+    const pink = glow(0xffb3c6, 0xe07090, 0.42);
+    const snoutMat = glow(0xffd0da, 0xf0a0b4, 0.28);
+    const earMat = glow(0xff9aaf, 0xe07090, 0.35);
+    const hoof = lambert(0xc46b78);
+    const dark = lambert(0x3a2428);
+
+    const body = addMesh(bob, geo('pigBody', () => new THREE.SphereGeometry(0.22, 10, 8)), pink, 0, 0.34, 0.02);
+    body.scale.set(1.05, 0.82, 1.35);
+    const head = new THREE.Group();
+    head.position.set(0, 0.42, -0.22);
+    bob.add(head);
+    const skull = addMesh(head, geo('pigHead', () => new THREE.SphereGeometry(0.13, 8, 6)), pink, 0, 0.02, -0.02);
+    skull.scale.set(1.05, 0.9, 1.05);
+    const snout = addMesh(head, geo('pigSnout', () => new THREE.CylinderGeometry(0.055, 0.06, 0.08, 8)), snoutMat, 0, -0.01, -0.14);
+    snout.rotation.x = Math.PI / 2;
+    addMesh(head, geo('pigNose', () => new THREE.SphereGeometry(0.012, 5, 4)), dark, -0.02, 0, -0.18);
+    addMesh(head, geo('pigNose', () => new THREE.SphereGeometry(0.012, 5, 4)), dark, 0.02, 0, -0.18);
+    const ears = [];
+    const earBase = [];
+    [-1, 1].forEach((s) => {
+      const ear = addMesh(head, geo('pigEar', () => new THREE.SphereGeometry(0.06, 6, 5)), earMat, s * 0.1, 0.1, 0.02);
+      ear.scale.set(0.7, 1.15, 0.35);
+      ear.rotation.z = s * -0.9;
+      ears.push(ear);
+      earBase.push(ear.rotation.z);
+      addMesh(head, geo('pigEye', () => new THREE.SphereGeometry(0.016, 6, 5)), dark, s * 0.06, 0.04, -0.1);
+    });
+
+    const legs = [];
+    const legGeo = geo('pigLeg', () => new THREE.CapsuleGeometry(0.028, 0.12, 2, 4));
+    [[-0.08, -0.08], [0.08, -0.08], [-0.09, 0.12], [0.09, 0.12]].forEach(([x, z]) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 0.22, z);
+      const leg = new THREE.Mesh(legGeo, hoof);
+      leg.position.y = -0.08;
+      pivot.add(leg);
+      bob.add(pivot);
+      legs.push(pivot);
+    });
+
+    const tail = addMesh(bob, geo('pigTail', () => new THREE.TorusGeometry(0.035, 0.012, 5, 8)), pink, 0, 0.4, 0.26);
+    tail.rotation.y = Math.PI / 2;
+
+    root.add(makeShadow(0.36));
+    root.scale.setScalar(1.22);
     return { root, tilt, bob, head, legs, tail, ears, earBase };
   }
 
@@ -809,6 +900,8 @@
   function buildAnimal(kind) {
     if (kind === 'boar') return buildBoar();
     if (kind === 'rabbit') return buildRabbit();
+    if (kind === 'blue') return buildBlueDeer();
+    if (kind === 'piglet') return buildPiglet();
     return buildDeer(kind === 'buck');
   }
 
@@ -820,18 +913,19 @@
     for (let i = 0; i < 12; i++) {
       const ang = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.random());
-      const x = Math.cos(ang) * 18 * r;
-      const z = -31 + Math.sin(ang) * 13 * r;
+      const x = Math.cos(ang) * 32 * r;
+      const z = -48 + Math.sin(ang) * 24 * r;
       if (!inPond(x, z)) return { x, z };
     }
     return { x: 2, z: -28 };
   }
 
   function sampleEdge() {
-    const side = Math.floor(Math.random() * 3);
-    if (side === 0) return { x: -34 - Math.random() * 6, z: -18 - Math.random() * 26 };
-    if (side === 1) return { x: 34 + Math.random() * 6, z: -18 - Math.random() * 26 };
-    return { x: -16 + Math.random() * 32, z: -54 - Math.random() * 6 };
+    const side = Math.floor(Math.random() * 4);
+    if (side === 0) return { x: -62 - Math.random() * 10, z: -16 - Math.random() * 70 };
+    if (side === 1) return { x: 62 + Math.random() * 10, z: -16 - Math.random() * 70 };
+    if (side === 2) return { x: -40 + Math.random() * 80, z: -96 - Math.random() * 10 };
+    return { x: -28 + Math.random() * 56, z: -12 - Math.random() * 4 };
   }
 
   function placeAnimal(kind, opts) {
@@ -846,6 +940,8 @@
       points: POINTS[kind],
       walk: WALK[kind],
       flee: FLEE[kind],
+      dash: DASH[kind] || 0,
+      path: opts.path ? opts.path.map((point) => ({ x: point.x, z: point.z })) : null,
       fallSide: 1,
       deadFor: 0,
     };
@@ -872,12 +968,23 @@
   function spawnOpening() {
     clearAnimals();
     placeAnimal('buck', { x: 6, z: -24, state: 'graze', broadside: true, timer: 8 });
-    placeAnimal('doe', { x: -11, z: -30, state: 'walk', target: { x: 8, z: -34 } });
-    placeAnimal('boar', { x: 14, z: -39, state: 'graze', broadside: true, timer: 6 });
+    placeAnimal('doe', { x: -16, z: -42, state: 'walk', target: { x: 4, z: -52 } });
+    placeAnimal('boar', { x: 22, z: -58, state: 'graze', broadside: true, timer: 6 });
     placeAnimal('rabbit', { x: -2.2, z: -16, state: 'walk', target: { x: 7, z: -19 } });
+    placeAnimal('doe', { x: -4, z: -82, state: 'graze', broadside: true, timer: 9 });
+  }
+
+  function countKind(kind) {
+    let n = 0;
+    for (const animal of animals) {
+      if (animal.kind === kind && animal.state !== 'dead') n += 1;
+    }
+    return n;
   }
 
   function pickKind() {
+    if (Math.random() < 0.08 && countKind('blue') === 0) return 'blue';
+    if (Math.random() < 0.14 && countKind('piglet') === 0) return 'piglet';
     const roll = Math.random();
     if (roll < 0.22) return 'buck';
     if (roll < 0.52) return 'doe';
@@ -885,10 +992,45 @@
     return 'rabbit';
   }
 
+  function spawnDasher(kind) {
+    if (kind === 'blue') {
+      const left = Math.random() < 0.5;
+      const z = -28 - Math.random() * 48;
+      const startX = left ? -48 - Math.random() * 6 : 48 + Math.random() * 6;
+      const endX = left ? 52 + Math.random() * 8 : -52 - Math.random() * 8;
+      const midX = (startX + endX) * 0.5 + (Math.random() - 0.5) * 8;
+      const midZ = z + (Math.random() - 0.5) * 10;
+      placeAnimal('blue', {
+        x: startX,
+        z,
+        state: 'dash',
+        target: { x: midX, z: midZ },
+        path: [{ x: endX, z: z + (Math.random() - 0.5) * 6 }],
+      });
+      return;
+    }
+    const startX = -18 + Math.random() * 36;
+    const startZ = -18 - Math.random() * 44;
+    let x = startX;
+    let z = startZ;
+    const hops = [];
+    const count = 3 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < count; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 6 + Math.random() * 4;
+      x += Math.cos(ang) * dist;
+      z += Math.sin(ang) * dist;
+      if (z > -8) z = -12 - Math.random() * 8;
+      hops.push({ x, z });
+    }
+    const first = hops.shift();
+    placeAnimal('piglet', { x: startX, z: startZ, state: 'dash', target: first, path: hops });
+  }
+
   function farAway(animal) {
     const x = animal.root.position.x;
     const z = animal.root.position.z;
-    return Math.abs(x) > 50 || z < -60 || z > -2;
+    return Math.abs(x) > 78 || z < -110 || z > 4;
   }
 
   function setFleeTarget(animal) {
@@ -922,10 +1064,10 @@
   }
 
   function animateAnimal(animal, dt) {
-    const moving = animal.state === 'walk' || animal.state === 'flee';
-    const freq = animal.state === 'flee' ? 13 : animal.state === 'walk' ? 6.5 : 1.6;
+    const moving = animal.state === 'walk' || animal.state === 'flee' || animal.state === 'dash';
+    const freq = animal.state === 'dash' ? 16 : animal.state === 'flee' ? 13 : animal.state === 'walk' ? 6.5 : 1.6;
     animal.phase += dt * freq;
-    const amp = animal.state === 'flee' ? 0.8 : animal.state === 'walk' ? 0.4 : 0.05;
+    const amp = animal.state === 'dash' ? 0.95 : animal.state === 'flee' ? 0.8 : animal.state === 'walk' ? 0.4 : 0.05;
     const swing = Math.sin(animal.phase) * amp;
     if (animal.legs.length >= 4) {
       animal.legs[0].rotation.x = swing;
@@ -934,16 +1076,21 @@
       animal.legs[2].rotation.x = -swing;
     }
     let headTarget = -0.1;
-    if (animal.state === 'graze') headTarget = animal.kind === 'boar' ? -0.7 : -0.95;
-    else if (animal.state === 'alert') headTarget = 0.42;
-    else if (animal.state === 'flee') headTarget = 0.18;
+    if (animal.state === 'graze') {
+      if (animal.kind === 'boar') headTarget = -0.7;
+      else if (animal.kind === 'piglet') headTarget = -0.35;
+      else headTarget = -0.95;
+    } else if (animal.state === 'alert') headTarget = 0.42;
+    else if (animal.state === 'flee' || animal.state === 'dash') headTarget = 0.18;
     animal.head.rotation.x = damp(animal.head.rotation.x, headTarget, 6, dt);
-    if (animal.tail && animal.kind !== 'boar') {
-      const tailTarget = animal.state === 'flee' ? -1.05 : -0.2;
+    if (animal.tail && animal.kind !== 'boar' && animal.kind !== 'piglet') {
+      const tailTarget = animal.state === 'flee' || animal.state === 'dash' ? -1.05 : -0.2;
       animal.tail.rotation.x = damp(animal.tail.rotation.x, tailTarget, 8, dt);
     }
-    if (animal.kind === 'rabbit' && moving) {
-      animal.bob.position.y = Math.abs(Math.sin(animal.phase)) * (animal.state === 'flee' ? 0.2 : 0.11);
+    if ((animal.kind === 'rabbit' || animal.kind === 'piglet') && moving) {
+      const hop = animal.kind === 'piglet' ? 0.16 : 0.11;
+      const lift = animal.state === 'dash' ? hop * 1.45 : animal.state === 'flee' ? hop * 1.3 : hop;
+      animal.bob.position.y = Math.abs(Math.sin(animal.phase)) * lift;
     } else {
       animal.bob.position.y = damp(animal.bob.position.y, 0, 8, dt);
     }
@@ -984,6 +1131,15 @@
         animal.state = 'walk';
         animal.target = randomMeadowPoint();
       }
+    } else if (animal.state === 'dash') {
+      const arrived = moveToward(animal, dt, animal.dash);
+      if (arrived) {
+        if (animal.path && animal.path.length) animal.target = animal.path.shift();
+        else {
+          removeAnimal(animal);
+          return;
+        }
+      }
     } else {
       const speed = animal.state === 'flee' ? animal.flee : animal.walk;
       const arrived = moveToward(animal, dt, speed);
@@ -1020,8 +1176,9 @@
     }
     spawnCooldown -= dt;
     if (spawnCooldown <= 0) {
-      const spot = sampleEdge();
-      placeAnimal(pickKind(), { x: spot.x, z: spot.z, state: 'walk', target: randomMeadowPoint() });
+      const kind = pickKind();
+      if (kind === 'blue' || kind === 'piglet') spawnDasher(kind);
+      else placeAnimal(kind, { x: spot.x, z: spot.z, state: 'walk', target: randomMeadowPoint() });
       spawnCooldown = 3.2 + Math.random() * 3.4;
     }
   }
@@ -1034,7 +1191,7 @@
     harvest[animal.kind] += 1;
     score += animal.points;
     hits += 1;
-    const height = animal.kind === 'rabbit' ? 0.4 : 1.1;
+    const height = animal.kind === 'rabbit' || animal.kind === 'piglet' ? 0.35 : 1.1;
     spawnPuff(animal.root.position.x, height, animal.root.position.z, 0xfff3c8, 14);
     playThud();
     toast(NAMES[animal.kind] + ' · HIT +' + animal.points, true);
@@ -1042,7 +1199,8 @@
 
   function spook(impact) {
     for (const animal of animals) {
-      if (animal.state === 'dead' || animal.state === 'flee') continue;
+      if (animal.state === 'dead' || animal.state === 'flee' || animal.state === 'dash') continue;
+      if (animal.kind === 'blue' || animal.kind === 'piglet') continue;
       const dImpact = Math.hypot(animal.root.position.x - impact.x, animal.root.position.z - impact.z);
       const dPlayer = Math.hypot(animal.root.position.x - CAM.x, animal.root.position.z - CAM.z);
       if (dImpact < 11) {
@@ -1064,7 +1222,8 @@
       if (animal.state === 'dead') continue;
       animal.root.updateWorldMatrix(true, true);
       _box.setFromObject(animal.bob);
-      _box.expandByScalar(animal.kind === 'rabbit' ? 0.2 : 0.12);
+      const pad = animal.kind === 'rabbit' || animal.kind === 'piglet' ? 0.18 : animal.kind === 'blue' ? 0.06 : 0.12;
+      _box.expandByScalar(pad);
       if (ray.intersectBox(_box, hitA)) {
         const dist = hitA.distanceTo(ray.origin);
         if (dist < bestDist) {
@@ -1195,7 +1354,9 @@
     endHarvest.textContent = [
       plural(harvest.buck, 'buck'),
       plural(harvest.doe, 'doe', 'does'),
+      plural(harvest.blue, 'blue deer', 'blue deer'),
       plural(harvest.boar, 'boar'),
+      plural(harvest.piglet, 'piglet'),
       plural(harvest.rabbit, 'rabbit'),
     ].join('   ·   ');
     const acc = shots ? Math.round((hits / shots) * 100) : 0;
@@ -1226,6 +1387,8 @@
     harvest.doe = 0;
     harvest.boar = 0;
     harvest.rabbit = 0;
+    harvest.blue = 0;
+    harvest.piglet = 0;
     clearAnimals();
     spawnOpening();
     spawnCooldown = 4.5;
@@ -1524,7 +1687,7 @@
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(26, 26);
+    tex.repeat.set(42, 42);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
     return tex;
@@ -1568,10 +1731,10 @@
 
   function buildWorld() {
     scene.background = new THREE.Color(HORIZON);
-    scene.fog = new THREE.Fog(HORIZON, 52, 128);
+    scene.fog = new THREE.Fog(HORIZON, 78, 230);
 
     const sky = new THREE.Mesh(
-      new THREE.SphereGeometry(280, 20, 14),
+      new THREE.SphereGeometry(480, 20, 14),
       new THREE.ShaderMaterial({
         side: THREE.BackSide,
         depthWrite: false,
@@ -1612,8 +1775,8 @@
       depthWrite: false,
       fog: false,
     }));
-    sun.position.set(-68, 46, -36);
-    sun.scale.set(42, 42, 1);
+    sun.position.set(-96, 64, -80);
+    sun.scale.set(56, 56, 1);
     scene.add(sun);
 
     const cloudMat = new THREE.MeshBasicMaterial({ color: 0xfffaf4, transparent: true, opacity: 0.88, depthWrite: false, fog: false });
@@ -1627,7 +1790,7 @@
         blob.scale.set(1.4 + Math.random(), 0.7 + Math.random() * 0.3, 1);
         cloud.add(blob);
       }
-      cloud.position.set(-80 + i * 28, 28 + Math.random() * 10, -40 - Math.random() * 30);
+      cloud.position.set(-130 + i * 42, 34 + Math.random() * 14, -70 - Math.random() * 50);
       cloud.scale.setScalar(3 + Math.random() * 2);
       cloud.userData.speed = 0.8 + Math.random() * 0.8;
       scene.add(cloud);
@@ -1643,7 +1806,7 @@
     scene.add(fill);
 
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(240, 240),
+      new THREE.PlaneGeometry(460, 460),
       new THREE.MeshLambertMaterial({ map: grassTexture() })
     );
     ground.rotation.x = -Math.PI / 2;
@@ -1652,7 +1815,7 @@
     const hillGeo = new THREE.SphereGeometry(1, 12, 8);
     const hillA = lambert(0x8eab78);
     const hillB = lambert(0x769468);
-    [[-55, -30, -98, 62, 36, 42, hillA], [48, -34, -104, 74, 40, 48, hillB], [0, -46, -128, 96, 48, 54, hillA]].forEach((h) => {
+    [[-90, -38, -150, 86, 44, 58, hillA], [78, -42, -162, 100, 48, 64, hillB], [4, -54, -198, 130, 58, 74, hillA], [-24, -30, -228, 150, 42, 86, hillB]].forEach((h) => {
       const mesh = new THREE.Mesh(hillGeo, h[6]);
       mesh.position.set(h[0], h[1], h[2]);
       mesh.scale.set(h[3], h[4], h[5]);
@@ -1662,7 +1825,7 @@
     const mistMatA = new THREE.MeshBasicMaterial({ color: 0xf4ead6, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide });
     const mistMatB = mistMatA.clone();
     mistMatB.opacity = 0.1;
-    [[0, 0.7, -28, 70, 36, mistMatA, 0.16], [10, 1.15, -40, 80, 30, mistMatB, 0.1]].forEach((m, i) => {
+    [[0, 0.7, -36, 90, 44, mistMatA, 0.16], [12, 1.15, -62, 110, 36, mistMatB, 0.1]].forEach((m, i) => {
       const mist = new THREE.Mesh(new THREE.PlaneGeometry(m[3], m[4]), m[5]);
       mist.rotation.x = -Math.PI / 2;
       mist.position.set(m[0], m[1], m[2]);
@@ -1677,6 +1840,7 @@
     buildGrass();
     buildStand();
     buildRocks();
+    buildLog();
     buildBirds();
   }
 
@@ -1723,9 +1887,9 @@
     }
 
     function addTree(x, z, scale, broad) {
-      if (Math.hypot(x, z - 8) < 7.5) return;
-      const meadow = (x * x) / (24 * 24) + ((z + 30) * (z + 30)) / (16 * 16);
-      if (meadow < 1.05 && Math.abs(z + 30) < 20) return;
+      if (Math.hypot(x, z - 8) < 8) return;
+      const meadow = (x * x) / (38 * 38) + ((z + 48) * (z + 48)) / (30 * 30);
+      if (meadow < 1.02) return;
       const tree = broad ? makeBroad() : makePine();
       tree.position.set(x, 0, z);
       tree.scale.setScalar(scale);
@@ -1735,21 +1899,26 @@
       trees.push(tree);
     }
 
-    for (let i = 0; i < 18; i++) {
-      addTree(-78 + i * 9.2 + Math.random() * 2, -64 - Math.random() * 8, 1.3 + Math.random() * 0.7, false);
+    for (let i = 0; i < 16; i++) {
+      addTree(-100 + i * 13 + Math.random() * 2, -108 - Math.random() * 10, 1.5 + Math.random() * 0.8, false);
     }
-    for (let i = 0; i < 34; i++) {
-      const x = (Math.random() * 2 - 1) * 86;
-      const z = (Math.random() * 2 - 1) * 78;
-      addTree(x, z, 0.75 + Math.random() * 0.95, Math.random() < 0.42);
+    for (let i = 0; i < 22; i++) {
+      const x = (Math.random() < 0.5 ? -1 : 1) * (46 + Math.random() * 64);
+      const z = -8 - Math.random() * 100;
+      addTree(x, z, 0.85 + Math.random() * 1.05, Math.random() < 0.45);
+    }
+    for (let i = 0; i < 18; i++) {
+      const x = (Math.random() * 2 - 1) * 120;
+      const z = -70 - Math.random() * 55;
+      addTree(x, z, 1.1 + Math.random() * 0.9, Math.random() < 0.3);
     }
 
     const bushGeo = new THREE.SphereGeometry(0.5, 6, 5);
     const bushMats = [0x3e6a34, 0x4e7c3e, 0x2d522c].map(lambert);
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 22; i++) {
       const ang = Math.random() * Math.PI * 2;
-      const x = Math.cos(ang) * (20 + Math.random() * 8);
-      const z = -30 + Math.sin(ang) * (14 + Math.random() * 6);
+      const x = Math.cos(ang) * (34 + Math.random() * 12);
+      const z = -48 + Math.sin(ang) * (26 + Math.random() * 10);
       if (inPond(x, z)) continue;
       const bush = new THREE.Group();
       const mat = bushMats[i % bushMats.length];
@@ -1798,7 +1967,7 @@
   function buildGrass() {
     const cone = new THREE.ConeGeometry(0.16, 0.55, 4);
     const material = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    const count = 170;
+    const count = 260;
     const mesh = new THREE.InstancedMesh(cone, material, count);
     const dummy = new THREE.Object3D();
     const color = new THREE.Color();
@@ -1876,6 +2045,17 @@
       if (inPond(rock.position.x, rock.position.z)) continue;
       scene.add(rock);
     }
+  }
+
+  function buildLog() {
+    const log = new THREE.Mesh(
+      geo('log', () => new THREE.CylinderGeometry(0.22, 0.28, 4.4, 6)),
+      lambert(0x6b4a32)
+    );
+    log.rotation.z = Math.PI / 2;
+    log.rotation.y = 0.55;
+    log.position.set(20, 0.24, -38);
+    scene.add(log);
   }
 
   function buildBirds() {
@@ -2044,7 +2224,7 @@
       const delta = lookDelta(sx, sy);
       yaw -= delta.x * sens;
       pitch -= delta.y * sens;
-      pitch = Math.max(-0.9, Math.min(0.62, pitch));
+      pitch = Math.max(-1.15, Math.min(0.82, pitch));
       yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
     });
     const endPointer = (event) => {
@@ -2259,7 +2439,7 @@
     stage.prepend(renderer.domElement);
 
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(HIP_FOV, 1, 0.08, 400);
+    camera = new THREE.PerspectiveCamera(HIP_FOV, 1, 0.08, 520);
     camera.rotation.order = 'YXZ';
     scene.add(camera);
     raycaster = new THREE.Raycaster();
@@ -2335,6 +2515,29 @@
           return { kind, center: [center.x, center.y, center.z], yaw, pitch, dx, dy, dz };
         },
         fire: onFire,
+        tick(dt) {
+          updateAnimals(dt || 0.05);
+        },
+        parade(kind) {
+          for (let i = animals.length - 1; i >= 0; i--) {
+            if (animals[i].kind === kind) removeAnimal(animals[i]);
+          }
+          const spot = kind === 'piglet' ? { x: 0.72, z: -6.6 } : { x: 2.2, z: -13 };
+          placeAnimal(kind, { x: spot.x, z: spot.z, state: 'alert', broadside: true, timer: 90 });
+          return { kind, x: spot.x, z: spot.z };
+        },
+        spawnDash(kind) {
+          for (let i = animals.length - 1; i >= 0; i--) {
+            if (animals[i].kind === kind) removeAnimal(animals[i]);
+          }
+          if (kind === 'piglet') {
+            placeAnimal('piglet', { x: 0, z: -20, state: 'dash', target: { x: 14, z: -18 }, path: [{ x: 18, z: -26 }] });
+          } else {
+            placeAnimal('blue', { x: -10, z: -22, state: 'dash', target: { x: 24, z: -22 }, path: [] });
+          }
+          const animal = animals.find((item) => item.kind === kind);
+          return { x: animal.root.position.x, z: animal.root.position.z, state: animal.state };
+        },
         dump: () => ({
           phase, score, ammo, reserve, timeLeft, shots, hits, yaw, pitch, scoped,
           turn, turnPref, landscapeLock, vibrated, android: ANDROID,

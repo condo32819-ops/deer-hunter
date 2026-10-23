@@ -14,7 +14,7 @@ Landscape is the best view. On Android Chrome the hunt asks to go fullscreen and
 - **Reload** when the magazine is empty (it also reloads on its own)
 - Optional **tilt aim** on the title screen, if the phone allows motion access
 
-The hunt lasts 2 minutes 30 seconds. You have five rounds in the rifle and ten more in your pocket. Deer, boar, and rabbits wander the meadow. A shot makes them look up, then run. A hit just drops the animal — nothing graphic.
+The hunt lasts 2 minutes 30 seconds. You have five rounds in the rifle and ten more in your pocket. Deer, boar, and rabbits wander a wide meadow, and now and then a blue deer sprints across or a piglet scurries past. A shot makes the usual animals look up, then run. A hit just drops the animal — nothing graphic. Doe 100, buck 150, boar 120, rabbit 50, piglet 80, blue deer 400.
 
 A mouse works too: drag to look, right-click to scope, Space to fire, R to reload, M to mute.
 
