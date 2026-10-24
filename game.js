@@ -1092,8 +1092,8 @@
       deadFor: 0,
     };
     animal.root.position.set(opts.x, 0, opts.z);
-    if (opts.broadside) animal.root.lookAt(opts.x + 5, 0, opts.z);
-    else animal.root.lookAt(animal.target.x, 0, animal.target.z);
+    if (opts.broadside) faceDirection(animal.root, opts.x + 5, opts.z);
+    else faceDirection(animal.root, animal.target.x, animal.target.z);
     scene.add(animal.root);
     animals.push(animal);
     return animal;
@@ -1252,8 +1252,15 @@
     dz /= dist;
     pos.x += dx * step;
     pos.z += dz * step;
-    animal.root.lookAt(pos.x + dx, pos.y, pos.z + dz);
+    faceDirection(animal.root, pos.x + dx, pos.z + dz);
     return false;
+  }
+
+  function faceDirection(root, x, z) {
+    // Models are built with the head on local -Z. Object3D.lookAt aims +Z
+    // at the point, which would put the tail in front. Turn 180° so the head leads.
+    root.lookAt(x, root.position.y, z);
+    root.rotateY(Math.PI);
   }
 
   function animateAnimal(animal, dt) {
