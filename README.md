@@ -10,11 +10,11 @@ Landscape is the best view. On Android Chrome the hunt asks to go fullscreen and
 
 - **Drag** anywhere on the woods to look around
 - **Scope** (button, long-press, or two fingers) for a zoomed rifle scope with a little sway
-- **Fire** to shoot. It is a bolt rifle: one shot, a short cycle, then the next
+- **Fire** to shoot. Tap it again right away, or hold it, for semi-auto at about five shots a second. Every shot still spends one round
 - **Reload** when the magazine is empty (it also reloads on its own)
 - Optional **tilt aim** on the title screen, if the phone allows motion access
 
-The hunt lasts 2 minutes 30 seconds. You have five rounds in the rifle and ten more in your pocket. Deer, boar, and rabbits wander a wide meadow. Now and then a blue deer sprints across, a piglet scurries and pauses, or giraffes and elephants lumber through. A shot makes the usual animals look up, then run. A hit just drops the animal — nothing graphic. Doe 100, buck 150, boar 120, rabbit 50, piglet 80, giraffe 200, elephant 250, blue deer 400.
+The hunt lasts 2 minutes 30 seconds. You have five rounds in the rifle and ten more in your pocket. Deer, boar, and rabbits wander a wide meadow. Now and then a blue deer sprints across, a piglet scurries and pauses, or giraffes and elephants lumber through. A lion crosses at half the blue deer's speed, and gorillas knuckle-walk slowly, alone or in a troop of two to four. A shot makes the usual animals look up, then run. A hit just drops the animal — nothing graphic. Doe 100, buck 150, boar 120, rabbit 50, piglet 80, giraffe 200, elephant 250, gorilla 160, lion 300, blue deer 400.
 
 A mouse works too: drag to look, right-click to scope, Space to fire, R to reload, M to mute.
 

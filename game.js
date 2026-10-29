@@ -16,11 +16,15 @@
   const BEST_KEY = 'deer-hunter-best';
   const MUTE_KEY = 'deer-hunter-muted';
   const TURN_KEY = 'deer-hunter-turn';
-  const POINTS = { buck: 150, doe: 100, boar: 120, rabbit: 50, blue: 400, piglet: 80, giraffe: 200, elephant: 250 };
-  const WALK = { buck: 1.35, doe: 1.55, boar: 1.15, rabbit: 2.35, blue: 2.4, piglet: 1.6, giraffe: 1.05, elephant: 0.82 };
-  const FLEE = { buck: 7.2, doe: 7.6, boar: 6.2, rabbit: 9.2, blue: 11.4, piglet: 4.4, giraffe: 2.4, elephant: 1.7 };
-  const DASH = { blue: 14.2, piglet: 4.9 };
-  const NAMES = { buck: 'Buck', doe: 'Doe', boar: 'Boar', rabbit: 'Cottontail', blue: 'Blue deer', piglet: 'Piglet', giraffe: 'Giraffe', elephant: 'Elephant' };
+  const POINTS = { buck: 150, doe: 100, boar: 120, rabbit: 50, blue: 400, piglet: 80, giraffe: 200, elephant: 250, lion: 300, gorilla: 160 };
+  const WALK = { buck: 1.35, doe: 1.55, boar: 1.15, rabbit: 2.35, blue: 2.4, piglet: 1.6, giraffe: 1.05, elephant: 0.82, lion: 1.45, gorilla: 0.66 };
+  const FLEE = { buck: 7.2, doe: 7.6, boar: 6.2, rabbit: 9.2, blue: 11.4, piglet: 4.4, giraffe: 2.4, elephant: 1.7, lion: 6.4, gorilla: 2.05 };
+  // The blue deer is the fast crosser. The lion uses half that dash.
+  const BLUE_DASH = 14.2;
+  const DASH = { blue: BLUE_DASH, piglet: 4.9, lion: BLUE_DASH * 0.5 };
+  // Held or tapped fire. About five shots a second, one round each.
+  const FIRE_CYCLE = 0.2;
+  const NAMES = { buck: 'Buck', doe: 'Doe', boar: 'Boar', rabbit: 'Cottontail', blue: 'Blue deer', piglet: 'Piglet', giraffe: 'Giraffe', elephant: 'Elephant', lion: 'Lion', gorilla: 'Gorilla' };
 
   const $ = (id) => document.getElementById(id);
   const titleScreen = $('title');
@@ -78,6 +82,13 @@
   let reloadLeft = 0;
   let autoReload = 0;
   let bolt = 0;
+  let triggerHeld = false;
+  let spaceHeld = false;
+  let touchHold = false;
+  let shotQueued = false;
+  let dryLatched = false;
+  let lastTriggerAt = 0;
+  const firePointers = new Set();
   let emptyHold = 0;
   let yaw = START_YAW;
   let pitch = START_PITCH;
@@ -104,7 +115,7 @@
   let tiltBase = null;
   let tiltListening = false;
 
-  const harvest = { buck: 0, doe: 0, boar: 0, rabbit: 0, blue: 0, piglet: 0, giraffe: 0, elephant: 0 };
+  const harvest = { buck: 0, doe: 0, boar: 0, rabbit: 0, blue: 0, piglet: 0, giraffe: 0, elephant: 0, lion: 0, gorilla: 0 };
   const animals = [];
   const trees = [];
   const clouds = [];
@@ -1039,13 +1050,181 @@
     return mesh;
   }
 
-  function buildAnimal(kind) {
+  function buildLion() {
+    const root = new THREE.Group();
+    const tilt = new THREE.Group();
+    const bob = new THREE.Group();
+    root.add(tilt);
+    tilt.add(bob);
+    const hide = lambert(0xd39a3c);
+    const bellyMat = lambert(0xf4e0b0);
+    const mane = lambert(0x8a3d12);
+    const maneDark = lambert(0x4e240c);
+    const face = lambert(0xe0b15a);
+    const dark = lambert(0x1a100c);
+
+    const body = addMesh(bob, geo('lionBody', () => new THREE.CapsuleGeometry(0.28, 1.08, 3, 7)), hide, 0, 0.78, 0.06);
+    body.rotation.x = Math.PI / 2;
+    const chest = addMesh(bob, geo('lionChest', () => new THREE.SphereGeometry(0.3, 7, 6)), hide, 0, 0.84, -0.5);
+    chest.scale.set(1.18, 0.92, 0.95);
+    const rump = addMesh(bob, geo('lionRump', () => new THREE.SphereGeometry(0.3, 7, 6)), hide, 0, 0.86, 0.55);
+    rump.scale.set(1.05, 0.86, 1.02);
+    const belly = addMesh(bob, geo('lionBelly', () => new THREE.SphereGeometry(0.2, 6, 5)), bellyMat, 0, 0.6, 0.06);
+    belly.scale.set(0.85, 0.38, 1.45);
+
+    const head = new THREE.Group();
+    head.position.set(0, 1.02, -0.82);
+    bob.add(head);
+    const ruff = addMesh(head, geo('lionRuff', () => new THREE.SphereGeometry(0.36, 8, 6)), mane, 0, 0.02, 0.04);
+    ruff.scale.set(1.45, 1.28, 0.78);
+    const tuftGeo = geo('lionTuft', () => new THREE.ConeGeometry(0.1, 0.32, 5));
+    [
+      [-0.34, 0.08, 0.08, 0.15, 0, 1.35],
+      [0.34, 0.08, 0.08, 0.15, 0, -1.35],
+      [-0.2, 0.36, 0.02, -0.4, 0, 0.35],
+      [0.2, 0.36, 0.02, -0.4, 0, -0.35],
+      [0, 0.4, 0.0, -0.7, 0, 0],
+      [-0.28, -0.16, 0.1, 0.9, 0, 2.1],
+      [0.28, -0.16, 0.1, 0.9, 0, -2.1],
+      [0, -0.28, 0.08, 2.4, 0, 0],
+    ].forEach(([x, y, z, rx, ry, rz]) => {
+      const tuft = addMesh(head, tuftGeo, maneDark, x, y, z);
+      tuft.rotation.set(rx, ry, rz);
+    });
+    const skull = addMesh(head, geo('lionSkull', () => new THREE.SphereGeometry(0.16, 8, 6)), face, 0, 0.02, -0.16);
+    skull.scale.set(1.02, 0.88, 1.12);
+    const snout = addMesh(head, geo('lionSnout', () => new THREE.CapsuleGeometry(0.075, 0.14, 2, 5)), face, 0, -0.05, -0.32);
+    snout.rotation.x = Math.PI / 2;
+    addMesh(head, geo('lionNose', () => new THREE.SphereGeometry(0.048, 6, 5)), dark, 0, 0.0, -0.42);
+    addMesh(head, geo('lionMouth', () => new THREE.BoxGeometry(0.09, 0.016, 0.04)), dark, 0, -0.07, -0.38);
+
+    const ears = [];
+    const earBase = [];
+    [-1, 1].forEach((s) => {
+      const ear = addMesh(head, geo('lionEar', () => new THREE.ConeGeometry(0.055, 0.13, 5)), hide, s * 0.2, 0.34, 0.02);
+      ear.rotation.z = s * -0.28;
+      ears.push(ear);
+      earBase.push(ear.rotation.z);
+      addMesh(head, geo('lionEye', () => new THREE.SphereGeometry(0.028, 6, 5)), dark, s * 0.08, 0.04, -0.28);
+    });
+
+    const legs = [];
+    const legGeo = geo('lionLeg', () => new THREE.CapsuleGeometry(0.055, 0.4, 2, 5));
+    [[-0.16, -0.42], [0.16, -0.42], [-0.16, 0.48], [0.16, 0.48]].forEach(([x, z]) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 0.62, z);
+      const leg = new THREE.Mesh(legGeo, hide);
+      leg.position.y = -0.26;
+      pivot.add(leg);
+      bob.add(pivot);
+      legs.push(pivot);
+    });
+
+    const tail = new THREE.Group();
+    tail.position.set(0, 0.92, 0.82);
+    const tailMesh = addMesh(tail, geo('lionTail', () => new THREE.CapsuleGeometry(0.025, 0.72, 2, 4)), hide, 0, 0.02, 0.34);
+    tailMesh.rotation.x = 1.2;
+    addMesh(tail, geo('lionTailTuft', () => new THREE.SphereGeometry(0.08, 6, 5)), maneDark, 0, -0.28, 0.66);
+    bob.add(tail);
+
+    root.add(makeShadow(1.05));
+    root.scale.setScalar(1.34);
+    return { root, tilt, bob, head, legs, tail, ears, earBase };
+  }
+
+  function buildGorilla(silver) {
+    const root = new THREE.Group();
+    const tilt = new THREE.Group();
+    const bob = new THREE.Group();
+    root.add(tilt);
+    tilt.add(bob);
+    bob.rotation.x = -0.18;
+    const fur = lambert(silver ? 0x3a3834 : 0x2c2b28);
+    const limb = lambert(0x1c1b19);
+    const skin = lambert(0x6d5344);
+    const brow = lambert(0x121110);
+    const silverMat = lambert(0xc2beb6);
+
+    const body = addMesh(bob, geo('gorBody', () => new THREE.SphereGeometry(0.46, 8, 6)), fur, 0, 0.84, 0.04);
+    body.scale.set(1.22, 0.84, 0.76);
+    const chest = addMesh(bob, geo('gorChest', () => new THREE.SphereGeometry(0.28, 7, 5)), skin, 0, 0.78, -0.22);
+    chest.scale.set(0.85, 0.62, 0.38);
+    if (silver) {
+      const saddle = addMesh(bob, geo('gorSilver', () => new THREE.SphereGeometry(0.32, 7, 5)), silverMat, 0, 1.02, 0.16);
+      saddle.scale.set(0.92, 0.48, 0.42);
+    }
+    addMesh(bob, geo('gorShoulder', () => new THREE.SphereGeometry(0.16, 6, 5)), fur, -0.4, 1.02, -0.02);
+    addMesh(bob, geo('gorShoulder', () => new THREE.SphereGeometry(0.16, 6, 5)), fur, 0.4, 1.02, -0.02);
+
+    const head = new THREE.Group();
+    head.position.set(0, 1.3, -0.16);
+    bob.add(head);
+    const skull = addMesh(head, geo('gorHead', () => new THREE.SphereGeometry(0.24, 8, 6)), fur, 0, 0.04, 0.02);
+    skull.scale.set(1.08, 0.92, 0.96);
+    const ridge = addMesh(head, geo('gorBrow', () => new THREE.BoxGeometry(0.32, 0.07, 0.1)), brow, 0, 0.08, -0.16);
+    ridge.rotation.x = 0.25;
+    const face = addMesh(head, geo('gorFace', () => new THREE.SphereGeometry(0.13, 7, 5)), skin, 0, -0.02, -0.12);
+    face.scale.set(1.15, 0.9, 0.62);
+    const nose = addMesh(head, geo('gorNose', () => new THREE.SphereGeometry(0.05, 5, 4)), limb, 0, -0.04, -0.22);
+    nose.scale.set(1.45, 0.7, 0.65);
+    addMesh(head, geo('gorMouth', () => new THREE.BoxGeometry(0.12, 0.02, 0.03)), brow, 0, -0.12, -0.2);
+    const ears = [];
+    const earBase = [];
+    [-1, 1].forEach((s) => {
+      const ear = addMesh(head, geo('gorEar', () => new THREE.SphereGeometry(0.055, 5, 4)), skin, s * 0.22, 0.04, 0.02);
+      ear.scale.set(0.42, 0.72, 0.36);
+      ears.push(ear);
+      earBase.push(ear.rotation.z);
+      addMesh(head, geo('gorEye', () => new THREE.SphereGeometry(0.028, 5, 4)), brow, s * 0.09, 0.02, -0.2);
+    });
+
+    const arms = [];
+    [-1, 1].forEach((s) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(s * 0.44, 1.08, 0.0);
+      bob.add(pivot);
+      const hx = s * 0.1;
+      const hy = -0.98;
+      const hz = -0.28;
+      const len = Math.hypot(hx, hy, hz);
+      const arm = new THREE.Mesh(geo('gorArm', () => new THREE.CylinderGeometry(0.078, 0.068, 1, 6)), limb);
+      arm.scale.y = len;
+      arm.position.set(hx * 0.5, hy * 0.5, hz * 0.5);
+      arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(hx / len, hy / len, hz / len));
+      pivot.add(arm);
+      const hand = addMesh(pivot, geo('gorHand', () => new THREE.SphereGeometry(0.09, 6, 4)), skin, hx, hy, hz);
+      hand.scale.set(1.35, 0.48, 1.12);
+      arms.push(pivot);
+    });
+
+    const legs = [];
+    [[-0.18, 0.16], [0.18, 0.16]].forEach(([x, z]) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 0.52, z);
+      bob.add(pivot);
+      const leg = new THREE.Mesh(geo('gorLeg', () => new THREE.CylinderGeometry(0.09, 0.1, 0.42, 6)), limb);
+      leg.position.y = -0.21;
+      pivot.add(leg);
+      const foot = addMesh(pivot, geo('gorFoot', () => new THREE.SphereGeometry(0.075, 5, 4)), skin, 0, -0.44, -0.05);
+      foot.scale.set(0.9, 0.4, 1.4);
+      legs.push(pivot);
+    });
+
+    root.add(makeShadow(0.95));
+    root.scale.setScalar(silver ? 1.42 : 1.22);
+    return { root, tilt, bob, head, legs, tail: null, ears, earBase, arms };
+  }
+
+  function buildAnimal(kind, opts) {
+    const o = opts || {};
     if (kind === 'boar') return buildBoar();
     if (kind === 'rabbit') return buildRabbit();
     if (kind === 'blue') return buildBlueDeer();
     if (kind === 'piglet') return buildPiglet();
     if (kind === 'giraffe') return buildGiraffe();
     if (kind === 'elephant') return buildElephant();
+    if (kind === 'lion') return buildLion();
+    if (kind === 'gorilla') return buildGorilla(o.silver !== false);
     return buildDeer(kind === 'buck');
   }
 
@@ -1073,7 +1252,7 @@
   }
 
   function placeAnimal(kind, opts) {
-    const built = buildAnimal(kind);
+    const built = buildAnimal(kind, opts);
     const animal = {
       kind,
       ...built,
@@ -1138,6 +1317,8 @@
     if (Math.random() < 0.12 && countKind('piglet') === 0) return 'piglet';
     if (Math.random() < 0.1 && countKind('giraffe') === 0 && open >= 1) return 'giraffe';
     if (Math.random() < 0.08 && countKind('elephant') === 0 && open >= 1) return 'elephant';
+    if (Math.random() < 0.09 && countKind('lion') === 0) return 'lion';
+    if (Math.random() < 0.12 && countKind('gorilla') === 0 && open >= 1) return 'gorilla';
     const roll = Math.random();
     if (roll < 0.22) return 'buck';
     if (roll < 0.52) return 'doe';
@@ -1148,7 +1329,10 @@
   function herdSize(kind, open) {
     let want;
     if (kind === 'giraffe') want = Math.random() < 0.38 ? 1 : 3 + Math.floor(Math.random() * 3);
-    else {
+    else if (kind === 'gorilla') {
+      const roll = Math.random();
+      want = roll < 0.34 ? 1 : 2 + Math.floor(Math.random() * 3);
+    } else {
       const roll = Math.random();
       want = roll < 0.2 ? 1 : roll < 0.6 ? 2 : 3;
     }
@@ -1160,12 +1344,14 @@
     if (count < 1) return 0;
     const left = Math.random() < 0.5;
     const dir = left ? 1 : -1;
-    const z0 = -34 - Math.random() * 28;
-    const startX = left ? -56 : 56;
+    const gorilla = kind === 'gorilla';
+    const z0 = (gorilla ? -22 : -34) - Math.random() * (gorilla ? 26 : 28);
+    const reach = gorilla ? 30 : 56;
+    const startX = left ? -reach : reach;
     const endX = -startX;
-    const midX = (Math.random() - 0.5) * 10;
-    const along = kind === 'elephant' ? 4.6 : 3.3;
-    const aside = kind === 'elephant' ? 2.8 : 2.15;
+    const midX = (Math.random() - 0.5) * (gorilla ? 6 : 10);
+    const along = kind === 'elephant' ? 4.6 : gorilla ? 2.7 : 3.3;
+    const aside = kind === 'elephant' ? 2.8 : gorilla ? 2.05 : 2.15;
     for (let i = 0; i < count; i++) {
       const row = Math.floor(i / 2);
       const col = i % 2 === 0 ? -1 : 1;
@@ -1178,6 +1364,7 @@
         z,
         state: 'walk',
         herd: true,
+        silver: gorilla && i === 0,
         target: { x: midX + back * 0.12, z },
         path: [{ x: endX + back * 0.08, z: z + (Math.random() - 0.5) * 1.2 }],
       });
@@ -1186,14 +1373,15 @@
   }
 
   function spawnDasher(kind) {
-    if (kind === 'blue') {
+    if (kind === 'blue' || kind === 'lion') {
       const left = Math.random() < 0.5;
-      const z = -28 - Math.random() * 48;
-      const startX = left ? -48 - Math.random() * 6 : 48 + Math.random() * 6;
-      const endX = left ? 52 + Math.random() * 8 : -52 - Math.random() * 8;
+      const lion = kind === 'lion';
+      const z = (lion ? -18 : -28) - Math.random() * (lion ? 32 : 48);
+      const startX = left ? -46 - Math.random() * 8 : 46 + Math.random() * 8;
+      const endX = left ? 50 + Math.random() * 10 : -50 - Math.random() * 10;
       const midX = (startX + endX) * 0.5 + (Math.random() - 0.5) * 8;
-      const midZ = z + (Math.random() - 0.5) * 10;
-      placeAnimal('blue', {
+      const midZ = z + (Math.random() - 0.5) * (lion ? 4 : 10);
+      placeAnimal(kind, {
         x: startX,
         z,
         state: 'dash',
@@ -1273,11 +1461,26 @@
     } else if (animal.kind === 'giraffe' && animal.state === 'walk') {
       freq = 2.6;
       amp = 0.28;
+    } else if (animal.kind === 'gorilla') {
+      freq = moving ? 2.3 : 1.2;
+      amp = moving ? 0.28 : 0.04;
+    } else if (animal.kind === 'lion' && animal.state === 'dash') {
+      freq = 11;
+      amp = 0.72;
     }
     if (animal.kind === 'piglet' && animal.state === 'dash') freq = 9;
     animal.phase += dt * freq;
     const swing = Math.sin(animal.phase) * amp;
-    if (animal.legs.length >= 4) {
+    if (animal.kind === 'gorilla') {
+      if (animal.arms && animal.arms.length >= 2) {
+        animal.arms[0].rotation.x = -swing;
+        animal.arms[1].rotation.x = swing;
+      }
+      if (animal.legs.length >= 2) {
+        animal.legs[0].rotation.x = swing * 0.7;
+        animal.legs[1].rotation.x = -swing * 0.7;
+      }
+    } else if (animal.legs.length >= 4) {
       animal.legs[0].rotation.x = swing;
       animal.legs[3].rotation.x = swing;
       animal.legs[1].rotation.x = -swing;
@@ -1289,13 +1492,20 @@
       else if (animal.kind === 'piglet') headTarget = -0.35;
       else if (animal.kind === 'giraffe') headTarget = -0.28;
       else if (animal.kind === 'elephant') headTarget = -0.16;
+      else if (animal.kind === 'gorilla') headTarget = 0.08;
+      else if (animal.kind === 'lion') headTarget = 0.02;
       else headTarget = -0.95;
-    } else if (animal.state === 'alert') headTarget = 0.42;
+    } else if (animal.state === 'alert') headTarget = animal.kind === 'gorilla' ? 0.24 : 0.42;
+    else if (animal.kind === 'gorilla') headTarget = 0.12;
+    else if (animal.kind === 'lion') headTarget = 0.06;
     else if (animal.kind === 'giraffe' || animal.kind === 'elephant') headTarget = 0.02;
     else if (animal.state === 'flee' || animal.state === 'dash') headTarget = 0.18;
     animal.head.rotation.x = damp(animal.head.rotation.x, headTarget, 6, dt);
     if (animal.trunk) animal.trunk.rotation.x = -0.2 + Math.sin(time * 1.3 + animal.phase) * 0.14;
-    if (animal.tail && animal.kind !== 'boar' && animal.kind !== 'piglet' && animal.kind !== 'elephant' && animal.kind !== 'giraffe') {
+    if (animal.kind === 'lion' && animal.tail) {
+      animal.tail.rotation.y = Math.sin(time * 3.2 + animal.phase) * 0.45;
+      animal.tail.rotation.x = -0.1 + Math.sin(time * 7 + animal.phase) * 0.05;
+    } else if (animal.tail && animal.kind !== 'boar' && animal.kind !== 'piglet' && animal.kind !== 'elephant' && animal.kind !== 'giraffe') {
       const tailTarget = animal.state === 'flee' || animal.state === 'dash' ? -1.05 : -0.2;
       animal.tail.rotation.x = damp(animal.tail.rotation.x, tailTarget, 8, dt);
     }
@@ -1303,6 +1513,10 @@
       const hop = animal.kind === 'piglet' ? 0.16 : 0.11;
       const lift = animal.state === 'dash' ? hop * 1.45 : animal.state === 'flee' ? hop * 1.3 : hop;
       animal.bob.position.y = Math.abs(Math.sin(animal.phase)) * lift;
+    } else if (animal.kind === 'lion' && animal.state === 'dash') {
+      animal.bob.position.y = Math.abs(Math.sin(animal.phase)) * 0.05;
+    } else if (animal.kind === 'gorilla' && moving) {
+      animal.bob.position.y = Math.abs(Math.sin(animal.phase)) * 0.03;
     } else {
       animal.bob.position.y = damp(animal.bob.position.y, 0, 8, dt);
     }
@@ -1389,7 +1603,7 @@
           if (animal.path && animal.path.length) {
             animal.nextTarget = animal.path.shift();
             animal.state = 'graze';
-            animal.timer = animal.kind === 'elephant' ? 2.4 + Math.random() * 2.2 : 1.7 + Math.random() * 1.8;
+            animal.timer = animal.kind === 'elephant' ? 2.4 + Math.random() * 2.2 : animal.kind === 'gorilla' ? 0.7 + Math.random() * 0.7 : 1.7 + Math.random() * 1.8;
           } else {
             removeAnimal(animal);
             return;
@@ -1421,8 +1635,8 @@
     spawnCooldown -= dt;
     if (spawnCooldown <= 0) {
       const kind = pickKind();
-      if (kind === 'blue' || kind === 'piglet') spawnDasher(kind);
-      else if (kind === 'giraffe' || kind === 'elephant') spawnHerd(kind);
+      if (kind === 'blue' || kind === 'piglet' || kind === 'lion') spawnDasher(kind);
+      else if (kind === 'giraffe' || kind === 'elephant' || kind === 'gorilla') spawnHerd(kind);
       else {
         const spot = sampleEdge();
         placeAnimal(kind, { x: spot.x, z: spot.z, state: 'walk', target: randomMeadowPoint() });
@@ -1439,7 +1653,7 @@
     harvest[animal.kind] += 1;
     score += animal.points;
     hits += 1;
-    const height = animal.kind === 'rabbit' || animal.kind === 'piglet' ? 0.35 : animal.kind === 'giraffe' ? 2.4 : animal.kind === 'elephant' ? 1.55 : 1.1;
+    const height = animal.kind === 'rabbit' || animal.kind === 'piglet' ? 0.35 : animal.kind === 'giraffe' ? 2.4 : animal.kind === 'elephant' ? 1.55 : animal.kind === 'lion' ? 0.95 : animal.kind === 'gorilla' ? 1.15 : 1.1;
     spawnPuff(animal.root.position.x, height, animal.root.position.z, 0xfff3c8, 14);
     playThud();
     toast(NAMES[animal.kind] + ' · HIT +' + animal.points, true);
@@ -1508,18 +1722,48 @@
     return { dist: best, point: found ? woodPoint : null };
   }
 
-  function onFire() {
+  function releaseFire() {
+    firePointers.clear();
+    touchHold = false;
+    triggerHeld = false;
+    spaceHeld = false;
+    shotQueued = false;
+    dryLatched = false;
+  }
+
+  function syncTrigger() {
+    triggerHeld = firePointers.size > 0 || touchHold;
+    if (!triggerHeld && !spaceHeld) dryLatched = false;
+  }
+
+  // fromRepeat is the hold loop. A fresh tap during the cycle queues one
+  // follow-up so a fast finger still gets the next shot. Pointer and touch
+  // both arrive for one tap; the short gap drops that duplicate only.
+  function onFire(fromRepeat) {
     if (phase !== 'playing' || hintBlocking()) return;
-    if (reloading || bolt > 0) return;
+    if (!fromRepeat) {
+      const now = performance.now();
+      if (now - lastTriggerAt < 48) return;
+      lastTriggerAt = now;
+    }
+    if (reloading || bolt > 0) {
+      if (!fromRepeat) shotQueued = true;
+      return;
+    }
     if (ammo <= 0) {
+      shotQueued = false;
+      if (dryLatched) return;
+      dryLatched = true;
       playDry();
       toast('EMPTY', false);
       if (reserve > 0 && autoReload <= 0) autoReload = 0.28;
       return;
     }
+    dryLatched = false;
+    shotQueued = false;
     ammo -= 1;
     shots += 1;
-    bolt = 0.48;
+    bolt = FIRE_CYCLE;
     recoil = scoped ? 0.07 : 0.14;
     yawKick = (Math.random() - 0.5) * 0.02;
     rifleKick = 0.22;
@@ -1598,6 +1842,7 @@
     if (phase !== 'playing') return;
     phase = 'ended';
     scoped = false;
+    releaseFire();
     let fresh = false;
     if (score > best) {
       best = score;
@@ -1616,6 +1861,8 @@
       plural(harvest.rabbit, 'rabbit'),
       plural(harvest.giraffe, 'giraffe'),
       plural(harvest.elephant, 'elephant'),
+      plural(harvest.lion, 'lion'),
+      plural(harvest.gorilla, 'gorilla'),
     ].join('   ·   ');
     const acc = shots ? Math.round((hits / shots) * 100) : 0;
     endStats.textContent = plural(shots, 'shot') + '   ·   ' + plural(hits, 'hit') + '   ·   ' + acc + '% accuracy';
@@ -1638,6 +1885,8 @@
     reloadLeft = 0;
     autoReload = 0;
     bolt = 0;
+    shotQueued = false;
+    dryLatched = false;
     emptyHold = 0;
     recoil = 0;
     yawKick = 0;
@@ -1649,6 +1898,8 @@
     harvest.piglet = 0;
     harvest.giraffe = 0;
     harvest.elephant = 0;
+    harvest.lion = 0;
+    harvest.gorilla = 0;
     clearAnimals();
     spawnOpening();
     spawnCooldown = 4.5;
@@ -2528,17 +2779,26 @@
     el.addEventListener('pointercancel', endPointer);
     el.addEventListener('contextmenu', (event) => event.preventDefault());
 
-    let fireAt = 0;
-    function pressFire() {
-      const now = performance.now();
-      if (now - fireAt < 90) return;
-      fireAt = now;
-      ensureAudio();
-      onFire();
-    }
     function hitsFire(x, y) {
       const el = document.elementFromPoint(x, y);
       return !!(el && (el === fireBtn || fireBtn.contains(el)));
+    }
+    function targetIsFire(event) {
+      const t = event.target;
+      return !!(t && t.closest && t.closest('#fire'));
+    }
+    function pointerHitsFire(event) {
+      return hitsFire(event.clientX, event.clientY) || targetIsFire(event);
+    }
+    function touchHitsFire(touch, event) {
+      return hitsFire(touch.clientX, touch.clientY) || targetIsFire(event);
+    }
+    function remainingFireTouch(event) {
+      const touches = event.touches || [];
+      for (let i = 0; i < touches.length; i++) {
+        if (touchHitsFire(touches[i], event)) return true;
+      }
+      return false;
     }
     function bindPress(el, fn) {
       let at = 0;
@@ -2561,7 +2821,8 @@
         fn();
       });
     }
-    bindPress(fireBtn, onFire);
+    fireBtn.addEventListener('selectstart', (event) => event.preventDefault());
+    fireBtn.addEventListener('dragstart', (event) => event.preventDefault());
     bindPress(scopeBtn, () => toggleScope());
     bindPress(reloadBtn, () => tryReload());
     bindPress(startBtn, () => beginHunt());
@@ -2575,17 +2836,48 @@
     bindPress(turnTitleBtn, () => cycleTurn());
     bindPress(turnHudBtn, () => cycleTurn());
     muteButtons.forEach((btn) => bindPress(btn, () => toggleMute()));
-    window.addEventListener('touchstart', (event) => {
-      ensureAudio();
-      for (let i = 0; i < event.changedTouches.length; i++) {
-        const t = event.changedTouches[i];
-        if (hitsFire(t.clientX, t.clientY)) pressFire();
-      }
-    }, { capture: true, passive: false });
     window.addEventListener('pointerdown', (event) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-      if (hitsFire(event.clientX, event.clientY)) pressFire();
+      if (!pointerHitsFire(event)) return;
+      if (event.cancelable) event.preventDefault();
+      firePointers.add(event.pointerId);
+      triggerHeld = true;
+      ensureAudio();
+      onFire(false);
     }, true);
+    const endFirePointer = (event) => {
+      if (!firePointers.has(event.pointerId)) return;
+      firePointers.delete(event.pointerId);
+      if (firePointers.size === 0) touchHold = false;
+      syncTrigger();
+    };
+    window.addEventListener('pointerup', endFirePointer, true);
+    window.addEventListener('pointercancel', endFirePointer, true);
+    window.addEventListener('touchstart', (event) => {
+      let hit = false;
+      for (let i = 0; i < event.changedTouches.length; i++) {
+        if (touchHitsFire(event.changedTouches[i], event)) hit = true;
+      }
+      if (!hit) return;
+      if (event.cancelable) event.preventDefault();
+      ensureAudio();
+      // Pointer events already hold the trigger on current phones. Touch is
+      // the fallback for a browser that only delivers the touch.
+      if (firePointers.size === 0) {
+        touchHold = true;
+        triggerHeld = true;
+      }
+      onFire(false);
+    }, { capture: true, passive: false });
+    const endFireTouch = (event) => {
+      if (remainingFireTouch(event)) return;
+      touchHold = false;
+      if (!event.touches || event.touches.length === 0) firePointers.clear();
+      syncTrigger();
+    };
+    window.addEventListener('touchend', endFireTouch, { capture: true, passive: false });
+    window.addEventListener('touchcancel', endFireTouch, { capture: true, passive: false });
+    window.addEventListener('blur', releaseFire);
     tiltBtn.addEventListener('click', () => {
       if (tiltOn) {
         tiltOn = false;
@@ -2602,22 +2894,36 @@
     });
 
     window.addEventListener('keydown', (event) => {
-      if (event.repeat) return;
       if (event.code === 'Space') {
         event.preventDefault();
-        if (phase !== 'playing') beginHunt();
-        else onFire();
-      } else if (event.code === 'KeyR') tryReload();
+        if (phase !== 'playing') {
+          if (!event.repeat) beginHunt();
+          return;
+        }
+        if (event.repeat) return;
+        spaceHeld = true;
+        ensureAudio();
+        onFire(false);
+        return;
+      }
+      if (event.repeat) return;
+      if (event.code === 'KeyR') tryReload();
       else if (event.code === 'KeyF' || event.code === 'KeyC') toggleScope();
       else if (event.code === 'KeyM') toggleMute();
       else if (event.code === 'Enter' && phase !== 'playing') beginHunt();
+    });
+    window.addEventListener('keyup', (event) => {
+      if (event.code !== 'Space') return;
+      spaceHeld = false;
+      if (!triggerHeld) dryLatched = false;
     });
 
     window.addEventListener('resize', scheduleSync);
     window.addEventListener('orientationchange', scheduleSync);
     window.addEventListener('focus', syncOrientation);
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) syncOrientation();
+      if (document.hidden) releaseFire();
+      else syncOrientation();
     });
     if (screen.orientation && screen.orientation.addEventListener) {
       screen.orientation.addEventListener('change', scheduleSync);
@@ -2645,11 +2951,13 @@
     window.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
     let lastTouchEnd = 0;
     document.addEventListener('touchend', (event) => {
-      const target = event.target;
-      if (target && target.closest && target.closest('button')) return;
       const now = Date.now();
-      if (now - lastTouchEnd < 320) event.preventDefault();
+      const quick = now - lastTouchEnd < 340;
       lastTouchEnd = now;
+      const target = event.target;
+      const onButton = target && target.closest && target.closest('button');
+      if (quick && event.cancelable) event.preventDefault();
+      if (onButton) return;
     }, { passive: false });
   }
 
@@ -2681,6 +2989,7 @@
         updateAnimals(dt);
         updateReload(dt);
         if (bolt > 0) bolt = Math.max(0, bolt - dt);
+        if ((triggerHeld || spaceHeld || shotQueued) && bolt <= 0) onFire(true);
         if (autoReload > 0) {
           autoReload -= dt;
           if (autoReload <= 0) tryReload();
@@ -2835,6 +3144,8 @@
           }
           if (kind === 'piglet') {
             placeAnimal('piglet', { x: 0, z: -20, state: 'dash', target: { x: 14, z: -18 }, path: [{ x: 18, z: -26 }] });
+          } else if (kind === 'lion') {
+            placeAnimal('lion', { x: -10, z: -22, state: 'dash', target: { x: 24, z: -22 }, path: [] });
           } else {
             placeAnimal('blue', { x: -10, z: -22, state: 'dash', target: { x: 24, z: -22 }, path: [] });
           }

@@ -331,6 +331,9 @@ button {
   color: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   touch-action: manipulation;
 }
 
@@ -607,6 +610,9 @@ button, .text-btn { touch-action: manipulation; }
 #fire {
   pointer-events: auto;
   touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   position: absolute;
   right: calc(16px + var(--safe-r));
   bottom: calc(16px + var(--safe-b));
