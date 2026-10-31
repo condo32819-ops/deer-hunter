@@ -244,6 +244,8 @@ html, body {
   top: 50%;
   transform: translateY(-50%);
   width: min(320px, 46%);
+  max-height: calc(100% - 16px - var(--safe-t) - var(--safe-b));
+  overflow: auto;
   padding: 16px 16px 14px;
 }
 
