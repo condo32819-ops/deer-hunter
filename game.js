@@ -6,7 +6,7 @@
   const ROUND_SECONDS = params.get('quick') === '1' ? 12 : 150;
   const MAG = 5;
   const RESERVE_START = 10;
-  const MAX_ANIMALS = 12;
+  const MAX_ANIMALS = 28;
   const HIP_FOV = 52;
   const SCOPE_FOV = 15;
   const START_YAW = -0.08;
@@ -16,16 +16,16 @@
   const BEST_KEY = 'deer-hunter-best';
   const MUTE_KEY = 'deer-hunter-muted';
   const TURN_KEY = 'deer-hunter-turn';
-  const POINTS = { buck: 150, doe: 100, boar: 120, rabbit: 50, blue: 400, piglet: 80, giraffe: 200, elephant: 250, lion: 300, gorilla: 160, kangaroo: 220, joey: 800, ape: 700, caveman: 140, bunny: 40 };
-  const WALK = { buck: 1.35, doe: 1.55, boar: 1.15, rabbit: 2.35, blue: 2.4, piglet: 1.6, giraffe: 1.05, elephant: 0.82, lion: 1.45, gorilla: 0.66, kangaroo: 3.4, joey: 2.6, ape: 2.15, caveman: 1.28, bunny: 2.15 };
-  const FLEE = { buck: 7.2, doe: 7.6, boar: 6.2, rabbit: 9.2, blue: 11.4, piglet: 4.4, giraffe: 2.4, elephant: 1.7, lion: 6.4, gorilla: 2.05, kangaroo: 4.2, joey: 3.25, ape: 3.2, caveman: 3.3, bunny: 3.35 };
+  const POINTS = { buck: 150, doe: 100, boar: 120, rabbit: 50, blue: 400, piglet: 80, giraffe: 200, elephant: 250, lion: 300, gorilla: 160, kangaroo: 220, joey: 800, ape: 700, caveman: 140, bunny: 40, poacher: 500 };
+  const WALK = { buck: 1.35, doe: 1.55, boar: 1.15, rabbit: 2.35, blue: 2.4, piglet: 1.6, giraffe: 1.05, elephant: 0.82, lion: 1.45, gorilla: 0.66, kangaroo: 3.4, joey: 2.6, ape: 2.15, caveman: 1.28, bunny: 2.15, poacher: 1.45 };
+  const FLEE = { buck: 7.2, doe: 7.6, boar: 6.2, rabbit: 9.2, blue: 11.4, piglet: 4.4, giraffe: 2.4, elephant: 1.7, lion: 6.4, gorilla: 2.05, kangaroo: 4.2, joey: 3.25, ape: 3.2, caveman: 3.3, bunny: 3.35, poacher: 3.1 };
   // The blue deer is the fast crosser. The lion uses half that dash.
   // Kangaroo and caveman cross at a readable pace. Babies stay hittable.
   const BLUE_DASH = 14.2;
-  const DASH = { blue: BLUE_DASH, piglet: 4.9, lion: BLUE_DASH * 0.5, kangaroo: 3.85, caveman: 1.32 };
+  const DASH = { blue: BLUE_DASH, piglet: 4.9, lion: BLUE_DASH * 0.5, kangaroo: 3.85, caveman: 1.32, poacher: 1.5 };
   // Held or tapped fire. About five shots a second, one round each.
   const FIRE_CYCLE = 0.2;
-  const NAMES = { buck: 'Buck', doe: 'Doe', boar: 'Boar', rabbit: 'Cottontail', blue: 'Blue deer', piglet: 'Piglet', giraffe: 'Giraffe', elephant: 'Elephant', lion: 'Lion', gorilla: 'Gorilla', kangaroo: 'Kangaroo', joey: 'Joey', ape: 'Baby gorilla', caveman: 'Caveman', bunny: 'Bunny' };
+  const NAMES = { buck: 'Buck', doe: 'Doe', boar: 'Boar', rabbit: 'Cottontail', blue: 'Blue deer', piglet: 'Piglet', giraffe: 'Giraffe', elephant: 'Elephant', lion: 'Lion', gorilla: 'Gorilla', kangaroo: 'Kangaroo', joey: 'Joey', ape: 'Baby gorilla', caveman: 'Caveman', bunny: 'Bunny', poacher: 'Poacher' };
 
   const $ = (id) => document.getElementById(id);
   const titleScreen = $('title');
@@ -61,6 +61,9 @@
   const turnHudBtn = $('turn-hud');
   const stage = $('stage');
   const bangEl = $('bang');
+  const poacherEl = $('poacher');
+  const poacherNote = $('poacher-note');
+  const poacherFill = $('poacher-fill');
   const streakEl = $('streak');
   const ammoPanel = document.querySelector('.ammo-panel');
   const muteButtons = [$('mute-title'), $('mute-hud')];
@@ -103,7 +106,7 @@
   let time = 0;
   let hintTime = 0;
   let toastTime = 0;
-  let spawnCooldown = 6;
+  let spawnCooldown = 1.6;
   let rangeAcc = 0;
   let birdIn = 3;
   let muted = false;
@@ -116,8 +119,9 @@
   let tiltBase = null;
   let tiltListening = false;
 
-  const harvest = { buck: 0, doe: 0, boar: 0, rabbit: 0, blue: 0, piglet: 0, giraffe: 0, elephant: 0, lion: 0, gorilla: 0, kangaroo: 0, joey: 0, ape: 0, caveman: 0, bunny: 0 };
+  const harvest = { buck: 0, doe: 0, boar: 0, rabbit: 0, blue: 0, piglet: 0, giraffe: 0, elephant: 0, lion: 0, gorilla: 0, kangaroo: 0, joey: 0, ape: 0, caveman: 0, bunny: 0, poacher: 0 };
   const animals = [];
+  const drops = [];
   const trees = [];
   const clouds = [];
   const birds = [];
@@ -477,6 +481,12 @@
     tone(170, 0.16, 'sawtooth', 0.28, 48);
     tone(92, 0.28, 'sine', 0.9, 32);
     tone(480, 0.045, 'square', 0.16, 90);
+  }
+
+  function playPoacherShot() {
+    if (!ensureAudio() || muted) return;
+    noiseBurst(0.05, 3600, 700, 0.32);
+    tone(150, 0.09, 'sawtooth', 0.1, 46);
   }
 
   function pulseShot() {
@@ -1439,14 +1449,127 @@
     if (kind === 'kangaroo') return buildKangaroo(false);
     if (kind === 'joey') return buildKangaroo(true);
     if (kind === 'caveman') return buildCaveman();
+    if (kind === 'poacher') return buildPoacher();
     return buildDeer(kind === 'buck');
+  }
+
+  function buildPoacher() {
+    const root = new THREE.Group();
+    const tilt = new THREE.Group();
+    const bob = new THREE.Group();
+    root.add(tilt);
+    tilt.add(bob);
+    const skin = lambert(0xd7a878);
+    const khaki = lambert(0xc4a15a);
+    const vest = lambert(0x3e4a30);
+    const hat = lambert(0x2a2218);
+    const boot = lambert(0x3a291c);
+    const ivory = lambert(0xf4ecda);
+    const wood = lambert(0x6b4428);
+    const metal = lambert(0x2a2c30);
+    const dark = lambert(0x1a140f);
+
+    const legs = [];
+    [-1, 1].forEach((s) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(s * 0.09, 0.64, 0);
+      bob.add(pivot);
+      addMesh(pivot, geo('poachLeg', () => new THREE.CapsuleGeometry(0.05, 0.4, 2, 5)), khaki, 0, -0.22, 0);
+      const shoe = addMesh(pivot, geo('poachBoot', () => new THREE.SphereGeometry(0.055, 5, 4)), boot, 0, -0.48, -0.03);
+      shoe.scale.set(0.85, 0.48, 1.4);
+      legs.push(pivot);
+    });
+
+    const torso = addMesh(bob, geo('poachBody', () => new THREE.CapsuleGeometry(0.16, 0.28, 3, 6)), khaki, 0, 0.98, 0.02);
+    torso.scale.set(1.05, 1, 0.82);
+    const jacket = addMesh(bob, geo('poachVest', () => new THREE.CapsuleGeometry(0.15, 0.2, 2, 5)), vest, 0, 1.02, -0.04);
+    jacket.scale.set(0.95, 0.85, 0.55);
+    addMesh(bob, geo('poachShoulder', () => new THREE.SphereGeometry(0.08, 5, 4)), khaki, -0.18, 1.18, 0);
+    addMesh(bob, geo('poachShoulder', () => new THREE.SphereGeometry(0.08, 5, 4)), khaki, 0.18, 1.18, 0);
+
+    const head = new THREE.Group();
+    head.position.set(0, 1.42, -0.02);
+    bob.add(head);
+    addMesh(head, geo('poachSkull', () => new THREE.SphereGeometry(0.13, 7, 6)), skin, 0, 0.02, 0);
+    const brim = addMesh(head, geo('poachBrim', () => new THREE.CylinderGeometry(0.2, 0.2, 0.025, 8)), hat, 0, 0.12, 0);
+    brim.scale.z = 1.15;
+    addMesh(head, geo('poachCrown', () => new THREE.CylinderGeometry(0.09, 0.11, 0.12, 6)), hat, 0, 0.18, 0);
+    addMesh(head, geo('poachBrow', () => new THREE.BoxGeometry(0.12, 0.025, 0.03)), hat, 0, 0.06, -0.1);
+    [-1, 1].forEach((s) => {
+      addMesh(head, geo('poachEye', () => new THREE.SphereGeometry(0.016, 5, 4)), dark, s * 0.045, 0.03, -0.11);
+    });
+    addMesh(head, geo('poachStash', () => new THREE.BoxGeometry(0.07, 0.018, 0.02)), dark, 0, -0.02, -0.12);
+
+    const arms = [];
+    const free = new THREE.Group();
+    free.position.set(0.2, 1.16, 0.02);
+    bob.add(free);
+    addMesh(free, geo('poachArm', () => new THREE.CapsuleGeometry(0.04, 0.22, 2, 4)), khaki, 0, -0.14, 0);
+    arms.push(free);
+
+    const tusk = new THREE.Group();
+    tusk.position.set(0.12, 1.22, 0.02);
+    bob.add(tusk);
+    const curve = addMesh(tusk, geo('poachTusk', () => new THREE.TorusGeometry(0.42, 0.055, 5, 12, 1.55)), ivory, 0.02, 0.08, 0.02);
+    curve.rotation.set(0.35, -0.4, 1.05);
+
+    const rifle = new THREE.Group();
+    rifle.position.set(-0.16, 1.12, -0.02);
+    rifle.rotation.x = -0.35;
+    bob.add(rifle);
+    const barrel = addMesh(rifle, geo('poachBarrel', () => new THREE.CylinderGeometry(0.022, 0.028, 0.78, 5)), metal, 0, 0.02, -0.22);
+    barrel.rotation.x = Math.PI / 2;
+    addMesh(rifle, geo('poachStock', () => new THREE.BoxGeometry(0.045, 0.07, 0.26)), wood, 0, -0.02, 0.16);
+    const muzzle = addMesh(rifle, geo('poachFlash', () => new THREE.SphereGeometry(0.055, 6, 4)), glow(0xfff1b0, 0xffe08a, 1.6), 0, 0.02, -0.62);
+    muzzle.visible = false;
+
+    root.add(makeShadow(0.55));
+    root.scale.setScalar(1.24);
+    return { root, tilt, bob, head, legs, tail: null, ears: null, earBase: null, arms, tusk, rifle, muzzle };
   }
 
   function inPond(x, z) {
     return Math.hypot(x + 16, z + 24) < 7;
   }
 
+  function clampMeadow(point) {
+    let x = point.x;
+    let z = point.z;
+    if (z > -10) z = -11 - Math.random() * 6;
+    if (z < -82) z = -70 - Math.random() * 8;
+    if (x > 50) x = 38 + Math.random() * 8;
+    if (x < -50) x = -38 - Math.random() * 8;
+    if (inPond(x, z)) x += x > -16 ? 12 : -12;
+    return { x, z };
+  }
+
+  function lookFlat() {
+    return { x: -Math.sin(yaw), z: -Math.cos(yaw) };
+  }
+
+  // A point in front of wherever the rifle is aimed, so new targets enter the view.
+  function viewPoint(dist, side) {
+    const look = lookFlat();
+    const rx = -look.z;
+    const rz = look.x;
+    return clampMeadow({
+      x: CAM.x + look.x * dist + rx * side,
+      z: CAM.z + look.z * dist + rz * side,
+    });
+  }
+
+  function viewCross(depthMin, depthMax, half) {
+    const dist = depthMin + Math.random() * (depthMax - depthMin);
+    const span = half + Math.random() * 4;
+    const left = Math.random() < 0.5;
+    const start = viewPoint(dist, left ? -span : span);
+    const end = viewPoint(dist + (Math.random() - 0.5) * 5, left ? span * 0.9 : -span * 0.9);
+    const mid = viewPoint(dist + (Math.random() - 0.5) * 3, (Math.random() - 0.5) * span * 0.25);
+    return { start, mid, end };
+  }
+
   function randomMeadowPoint() {
+    if (Math.random() < 0.78) return viewPoint(14 + Math.random() * 26, (Math.random() - 0.5) * 24);
     for (let i = 0; i < 12; i++) {
       const ang = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.random());
@@ -1458,11 +1581,11 @@
   }
 
   function sampleEdge() {
-    const side = Math.floor(Math.random() * 4);
-    if (side === 0) return { x: -62 - Math.random() * 10, z: -16 - Math.random() * 70 };
-    if (side === 1) return { x: 62 + Math.random() * 10, z: -16 - Math.random() * 70 };
-    if (side === 2) return { x: -40 + Math.random() * 80, z: -96 - Math.random() * 10 };
-    return { x: -28 + Math.random() * 56, z: -12 - Math.random() * 4 };
+    if (Math.random() < 0.84) {
+      return viewPoint(15 + Math.random() * 22, (Math.random() - 0.5) * 26);
+    }
+    const side = Math.random() < 0.5 ? -1 : 1;
+    return viewPoint(18 + Math.random() * 16, side * (16 + Math.random() * 10));
   }
 
   function placeAnimal(kind, opts) {
@@ -1492,6 +1615,9 @@
       vy: 0,
       dropSlide: null,
       shadow: null,
+      leg: opts.leg || 0,
+      muzzleLife: 0,
+      shotsLeft: 0,
     };
     animal.root.position.set(opts.x, 0, opts.z);
     if (opts.broadside) faceDirection(animal.root, opts.x + 5, opts.z);
@@ -1501,9 +1627,15 @@
     return animal;
   }
 
+  function clearDrops() {
+    for (const drop of drops) scene.remove(drop.mesh);
+    drops.length = 0;
+  }
+
   function clearAnimals() {
     for (const animal of animals) scene.remove(animal.root);
     animals.length = 0;
+    clearDrops();
   }
 
   function removeAnimal(animal) {
@@ -1515,11 +1647,15 @@
 
   function spawnOpening() {
     clearAnimals();
-    placeAnimal('buck', { x: 6, z: -24, state: 'graze', broadside: true, timer: 8 });
-    placeAnimal('doe', { x: -16, z: -42, state: 'walk', target: { x: 4, z: -52 } });
-    placeAnimal('boar', { x: 22, z: -58, state: 'graze', broadside: true, timer: 6 });
-    placeAnimal('rabbit', { x: -2.2, z: -16, state: 'walk', target: { x: 7, z: -19 } });
-    placeAnimal('doe', { x: -4, z: -82, state: 'graze', broadside: true, timer: 9 });
+    placeAnimal('buck', { x: 3.5, z: -16, state: 'graze', broadside: true, timer: 5 });
+    placeAnimal('doe', { x: -5, z: -20, state: 'walk', target: { x: 2, z: -26 } });
+    placeAnimal('doe', { x: 9, z: -26, state: 'graze', broadside: true, timer: 4.5 });
+    placeAnimal('buck', { x: -10, z: -30, state: 'walk', target: { x: -1, z: -22 } });
+    placeAnimal('boar', { x: -8, z: -18, state: 'graze', broadside: true, timer: 4 });
+    placeAnimal('boar', { x: 12, z: -34, state: 'walk', target: { x: 2, z: -28 } });
+    placeAnimal('rabbit', { x: -1.5, z: -13, state: 'walk', target: { x: 4, z: -17 } });
+    placeAnimal('rabbit', { x: 6, z: -15, state: 'walk', target: { x: -2, z: -19 } });
+    placeAnimal('doe', { x: 1, z: -38, state: 'walk', target: { x: -4, z: -28 } });
   }
 
   function countKind(kind) {
@@ -1536,14 +1672,15 @@
 
   function pickKind() {
     const open = slotsOpen();
-    if (Math.random() < 0.08 && countKind('blue') === 0) return 'blue';
-    if (Math.random() < 0.12 && countKind('piglet') === 0) return 'piglet';
-    if (Math.random() < 0.1 && countKind('giraffe') === 0 && open >= 1) return 'giraffe';
-    if (Math.random() < 0.08 && countKind('elephant') === 0 && open >= 1) return 'elephant';
-    if (Math.random() < 0.09 && countKind('lion') === 0) return 'lion';
-    if (Math.random() < 0.065 && countKind('kangaroo') === 0) return 'kangaroo';
-    if (Math.random() < 0.05 && countKind('caveman') === 0) return 'caveman';
-    if (Math.random() < 0.12 && countKind('gorilla') === 0 && open >= 1) return 'gorilla';
+    if (Math.random() < 0.11 && countKind('blue') < 2) return 'blue';
+    if (Math.random() < 0.16 && countKind('piglet') < 2) return 'piglet';
+    if (Math.random() < 0.13 && countKind('giraffe') < 5 && open >= 1) return 'giraffe';
+    if (Math.random() < 0.1 && countKind('elephant') < 4 && open >= 1) return 'elephant';
+    if (Math.random() < 0.12 && countKind('lion') < 2) return 'lion';
+    if (Math.random() < 0.09 && countKind('kangaroo') < 2) return 'kangaroo';
+    if (Math.random() < 0.07 && countKind('caveman') < 2) return 'caveman';
+    if (phase === 'playing' && Math.random() < 0.08 && countKind('poacher') === 0) return 'poacher';
+    if (Math.random() < 0.15 && countKind('gorilla') < 5 && open >= 1) return 'gorilla';
     const roll = Math.random();
     if (roll < 0.22) return 'buck';
     if (roll < 0.52) return 'doe';
@@ -1575,76 +1712,81 @@
   function spawnHerd(kind, forcedCount) {
     const count = forcedCount ? Math.min(forcedCount, slotsOpen()) : herdSize(kind, slotsOpen());
     if (count < 1) return 0;
-    const left = Math.random() < 0.5;
-    const dir = left ? 1 : -1;
     const gorilla = kind === 'gorilla';
     const leadCarries = gorilla && !forcedCount && countCarrying() === 0 && Math.random() < 0.55;
-    const z0 = (gorilla ? -22 : -34) - Math.random() * (gorilla ? 26 : 28);
-    const reach = gorilla ? 30 : 56;
-    const startX = left ? -reach : reach;
-    const endX = -startX;
-    const midX = (Math.random() - 0.5) * (gorilla ? 6 : 10);
-    const along = kind === 'elephant' ? 4.6 : gorilla ? 2.7 : 3.3;
-    const aside = kind === 'elephant' ? 2.8 : gorilla ? 2.05 : 2.15;
+    const cross = viewCross(gorilla ? 18 : 28, gorilla ? 34 : 46, gorilla ? 14 : 16);
+    const dx = cross.end.x - cross.start.x;
+    const dz = cross.end.z - cross.start.z;
+    const span = Math.hypot(dx, dz) || 1;
+    const fx = dx / span;
+    const fz = dz / span;
+    const rx = -fz;
+    const rz = fx;
+    const spacing = kind === 'elephant' ? 4.2 : gorilla ? 2.5 : 3.1;
+    const aside = kind === 'elephant' ? 2.6 : gorilla ? 1.9 : 2.05;
     for (let i = 0; i < count; i++) {
-      const row = Math.floor(i / 2);
-      const col = i % 2 === 0 ? -1 : 1;
-      const back = -dir * row * along;
-      const side = col * aside * (i === 0 ? 0.15 : 1);
-      const x = startX + back;
-      const z = z0 + side;
+      const back = -i * spacing * 0.55;
+      const side = (i % 2 === 0 ? -1 : 1) * aside * (i === 0 ? 0.15 : 1);
+      const x = cross.start.x + fx * back + rx * side;
+      const z = cross.start.z + fz * back + rz * side;
+      const spot = clampMeadow({ x, z });
       placeAnimal(kind, {
-        x,
-        z,
+        x: spot.x,
+        z: spot.z,
         state: 'walk',
         herd: true,
         silver: gorilla && i === 0,
         carrying: leadCarries && i === 0,
-        target: { x: midX + back * 0.12, z },
-        path: [{ x: endX + back * 0.08, z: z + (Math.random() - 0.5) * 1.2 }],
+        target: clampMeadow({
+          x: cross.mid.x + fx * back * 0.15 + rx * side,
+          z: cross.mid.z + fz * back * 0.15 + rz * side,
+        }),
+        path: [clampMeadow({
+          x: cross.end.x + rx * side * 0.4,
+          z: cross.end.z + rz * side * 0.4,
+        })],
       });
     }
     return count;
   }
 
   function spawnDasher(kind) {
-    if (kind === 'blue' || kind === 'lion' || kind === 'kangaroo' || kind === 'caveman') {
-      const left = Math.random() < 0.5;
-      const lion = kind === 'lion';
-      const roo = kind === 'kangaroo';
-      const cave = kind === 'caveman';
-      const near = lion || roo || cave;
-      const z = (near ? (roo ? -15 : cave ? -16 : -18) : -28) - Math.random() * (roo ? 24 : cave ? 20 : lion ? 32 : 48);
-      const reach = cave ? 36 : 46;
-      const startX = left ? -reach - Math.random() * 8 : reach + Math.random() * 8;
-      const endX = left ? reach + 6 + Math.random() * 8 : -reach - 6 - Math.random() * 8;
-      const midX = (startX + endX) * 0.5 + (Math.random() - 0.5) * (cave ? 4 : 8);
-      const midZ = z + (Math.random() - 0.5) * (near ? 3 : 10);
-      placeAnimal(kind, {
-        x: startX,
-        z,
-        state: 'dash',
-        target: { x: midX, z: midZ },
-        path: [{ x: endX, z: z + (Math.random() - 0.5) * (cave ? 2 : 6) }],
-      });
+    if (kind === 'piglet') {
+      const spot = viewPoint(14 + Math.random() * 16, (Math.random() - 0.5) * 14);
+      let x = spot.x;
+      let z = spot.z;
+      const hops = [];
+      const count = 3 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < count; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const dist = 5 + Math.random() * 3.5;
+        x += Math.cos(ang) * dist;
+        z += Math.sin(ang) * dist;
+        const hop = clampMeadow({ x, z });
+        x = hop.x;
+        z = hop.z;
+        hops.push(hop);
+      }
+      const first = hops.shift();
+      placeAnimal('piglet', { x: spot.x, z: spot.z, state: 'dash', target: first, path: hops });
       return;
     }
-    const startX = -18 + Math.random() * 36;
-    const startZ = -18 - Math.random() * 44;
-    let x = startX;
-    let z = startZ;
-    const hops = [];
-    const count = 3 + Math.floor(Math.random() * 2);
-    for (let i = 0; i < count; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const dist = 6 + Math.random() * 4;
-      x += Math.cos(ang) * dist;
-      z += Math.sin(ang) * dist;
-      if (z > -8) z = -12 - Math.random() * 8;
-      hops.push({ x, z });
-    }
-    const first = hops.shift();
-    placeAnimal('piglet', { x: startX, z: startZ, state: 'dash', target: first, path: hops });
+    const poacher = kind === 'poacher';
+    const near = kind === 'lion' || kind === 'kangaroo' || kind === 'caveman' || poacher;
+    const depthMin = kind === 'blue' ? 22 : poacher ? 16 : near ? 18 : 22;
+    const depthMax = kind === 'blue' ? 42 : poacher ? 28 : near ? 34 : 40;
+    const half = kind === 'blue' ? 22 : poacher ? 13 : 16;
+    const cross = viewCross(depthMin, depthMax, half);
+    const leg = Math.hypot(cross.mid.x - cross.start.x, cross.mid.z - cross.start.z);
+    placeAnimal(kind, {
+      x: cross.start.x,
+      z: cross.start.z,
+      state: 'dash',
+      target: cross.mid,
+      path: [cross.end],
+      leg: Math.max(8, leg),
+    });
+    if (poacher && phase === 'playing') toast('POACHER!', false);
   }
 
   function farAway(animal) {
@@ -1827,9 +1969,9 @@
     } else if (animal.kind === 'lion' && animal.state === 'dash') {
       freq = 11;
       amp = 0.72;
-    } else if (animal.kind === 'caveman') {
-      freq = moving ? 5.4 : 1.4;
-      amp = moving ? 0.48 : 0.04;
+    } else if (animal.kind === 'caveman' || animal.kind === 'poacher') {
+      freq = moving ? 5.2 : 1.4;
+      amp = moving ? 0.46 : 0.04;
     } else if (arc) {
       freq = 2.2;
       amp = 0.15;
@@ -1861,6 +2003,19 @@
         animal.club.rotation.x = bump * 0.08;
         animal.club.rotation.z = Math.sin(animal.phase * 0.5) * 0.04;
       }
+    } else if (animal.kind === 'poacher' && animal.legs.length >= 2) {
+      animal.legs[0].rotation.x = swing;
+      animal.legs[1].rotation.x = -swing;
+      if (animal.arms && animal.arms[0]) animal.arms[0].rotation.x = -swing * 0.6;
+      if (animal.rifle) {
+        const aim = animal.state === 'firing' ? 0.62 : -0.42;
+        animal.rifle.rotation.x = damp(animal.rifle.rotation.x, aim, 9, dt);
+      }
+      if (animal.muzzle) {
+        const flash = Math.max(0, animal.muzzleLife || 0);
+        animal.muzzle.visible = flash > 0;
+        animal.muzzle.scale.setScalar(0.7 + flash * 7);
+      }
     } else if (arc) {
       if (animal.tail) animal.tail.rotation.x = (animal.hopTuck || 0) * 0.22;
     } else if (animal.legs.length >= 4) {
@@ -1885,7 +2040,7 @@
     else if (animal.kind === 'lion') headTarget = 0.06;
     else if (animal.kind === 'giraffe' || animal.kind === 'elephant') headTarget = 0.02;
     else if (arc) headTarget = 0.04;
-    else if (animal.kind === 'caveman') headTarget = moving ? 0.06 : 0.1;
+    else if (animal.kind === 'caveman' || animal.kind === 'poacher') headTarget = animal.state === 'firing' ? 0.02 : moving ? 0.06 : 0.1;
     else if (animal.state === 'flee' || animal.state === 'dash') headTarget = 0.18;
     animal.head.rotation.x = damp(animal.head.rotation.x, headTarget, 6, dt);
     if (animal.trunk) animal.trunk.rotation.x = -0.2 + Math.sin(time * 1.3 + animal.phase) * 0.14;
@@ -1927,7 +2082,112 @@
       animal.puffed = true;
       spawnPuff(animal.root.position.x, 0.2, animal.root.position.z, 0xcbb892);
     }
-    if (animal.deadFor > 6.4) removeAnimal(animal);
+    if (animal.deadFor > 4.6) removeAnimal(animal);
+  }
+
+  function poacherBearing(animal) {
+    const dx = animal.root.position.x - CAM.x;
+    const dz = animal.root.position.z - CAM.z;
+    let diff = Math.atan2(-dx, -dz) - yaw;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    if (diff < -0.38) return 'Look right';
+    if (diff > 0.38) return 'Look left';
+    return 'Ahead';
+  }
+
+  function poacherProgress(animal) {
+    if (animal.state === 'firing') return 1;
+    const leg = animal.leg || 1;
+    const dx = animal.target.x - animal.root.position.x;
+    const dz = animal.target.z - animal.root.position.z;
+    return Math.max(0, Math.min(1, 1 - Math.hypot(dx, dz) / leg));
+  }
+
+  function updatePoacherBanner() {
+    if (!poacherEl) return;
+    let man = null;
+    for (const animal of animals) {
+      if (animal.kind === 'poacher' && animal.state !== 'dead') {
+        man = animal;
+        break;
+      }
+    }
+    if (!man || phase !== 'playing') {
+      poacherEl.hidden = true;
+      poacherEl.classList.remove('hot');
+      return;
+    }
+    poacherEl.hidden = false;
+    const firing = man.state === 'firing';
+    poacherEl.classList.toggle('hot', firing);
+    if (poacherNote) poacherNote.textContent = firing ? 'Shooting · -150 a shot' : poacherBearing(man) + ' · stop him';
+    if (poacherFill) poacherFill.style.width = Math.round(poacherProgress(man) * 100) + '%';
+  }
+
+  function dropTusk(animal) {
+    if (!animal.tusk) return;
+    animal.root.updateWorldMatrix(true, true);
+    const spot = new THREE.Vector3();
+    animal.tusk.getWorldPosition(spot);
+    animal.tusk.visible = false;
+    const prop = new THREE.Group();
+    const ivory = lambert(0xf4ecda);
+    const curve = addMesh(prop, geo('poachTusk', () => new THREE.TorusGeometry(0.42, 0.055, 5, 12, 1.55)), ivory, 0, 0, 0);
+    curve.rotation.set(0.4, 0.2, 0.8);
+    prop.position.copy(spot);
+    scene.add(prop);
+    drops.push({ mesh: prop, vy: 1.4, life: 0 });
+  }
+
+  function updateDrops(dt) {
+    for (let i = drops.length - 1; i >= 0; i--) {
+      const drop = drops[i];
+      drop.vy -= 14 * dt;
+      drop.mesh.position.y += drop.vy * dt;
+      drop.mesh.rotation.z += dt * 1.4;
+      if (drop.mesh.position.y < 0.15) {
+        drop.mesh.position.y = 0.15;
+        drop.vy *= -0.25;
+        if (Math.abs(drop.vy) < 0.4) drop.vy = 0;
+      }
+      drop.life += dt;
+      if (drop.life > 7) {
+        scene.remove(drop.mesh);
+        drops.splice(i, 1);
+      }
+    }
+  }
+
+  function poacherShot(animal) {
+    if (phase !== 'playing' || animal.state === 'dead') return;
+    animal.muzzleLife = 0.14;
+    if (animal.muzzle) {
+      animal.muzzle.visible = true;
+      const spot = new THREE.Vector3();
+      animal.root.updateWorldMatrix(true, true);
+      animal.muzzle.getWorldPosition(spot);
+      spawnPuff(spot.x, spot.y, spot.z, 0xffe08a, 12);
+    }
+    if (bangEl) {
+      bangEl.classList.remove('on', 'hostile');
+      void bangEl.offsetWidth;
+      bangEl.classList.add('on', 'hostile');
+    }
+    score = Math.max(0, score - 150);
+    toast('POACHER -150', false);
+    playPoacherShot();
+    try { if (navigator.vibrate) navigator.vibrate(40); } catch (err) { /* ignore */ }
+    updateHUD();
+  }
+
+  function startPoacherFire(animal) {
+    animal.state = 'firing';
+    animal.timer = 0.4;
+    animal.shotsLeft = 3;
+    faceDirection(animal.root, CAM.x, CAM.z);
+    toast("HE'S SHOOTING!", false);
+    updatePoacherBanner();
   }
 
   function updateAnimal(animal, dt) {
@@ -1937,6 +2197,25 @@
     }
     if (animal.state === 'drop') {
       updateDrop(animal, dt);
+      if (animals.indexOf(animal) >= 0) animateAnimal(animal, dt);
+      return;
+    }
+    if (animal.state === 'firing') {
+      faceDirection(animal.root, CAM.x, CAM.z);
+      if (animal.muzzleLife > 0) animal.muzzleLife -= dt;
+      if (phase === 'playing') {
+        animal.timer -= dt;
+        if (animal.timer <= 0) {
+          poacherShot(animal);
+          animal.shotsLeft -= 1;
+          animal.timer = 0.85;
+          if (animal.shotsLeft <= 0) {
+            animateAnimal(animal, dt);
+            endRound('The poacher ran you off');
+            return;
+          }
+        }
+      }
       if (animals.indexOf(animal) >= 0) animateAnimal(animal, dt);
       return;
     }
@@ -1977,7 +2256,9 @@
         ? stepHop(animal, dt, animal.dash, animal.hopHeight, animal.hopCycle)
         : moveToward(animal, dt, animal.dash);
       if (arrived) {
-        if (animal.kind === 'piglet') {
+        if (animal.kind === 'poacher') {
+          startPoacherFire(animal);
+        } else if (animal.kind === 'piglet') {
           animal.state = 'rest';
           animal.timer = 1.8 + Math.random() * 1.7;
         } else if (animal.path && animal.path.length) animal.target = animal.path.shift();
@@ -2028,19 +2309,19 @@
 
   function updatePopulation(dt) {
     if (activeCount() >= MAX_ANIMALS) {
-      spawnCooldown = 1.4;
+      spawnCooldown = 0.5;
       return;
     }
     spawnCooldown -= dt;
     if (spawnCooldown <= 0) {
       const kind = pickKind();
-      if (kind === 'blue' || kind === 'piglet' || kind === 'lion' || kind === 'kangaroo' || kind === 'caveman') spawnDasher(kind);
+      if (kind === 'blue' || kind === 'piglet' || kind === 'lion' || kind === 'kangaroo' || kind === 'caveman' || kind === 'poacher') spawnDasher(kind);
       else if (kind === 'giraffe' || kind === 'elephant' || kind === 'gorilla') spawnHerd(kind);
       else {
         const spot = sampleEdge();
         placeAnimal(kind, { x: spot.x, z: spot.z, state: 'walk', target: randomMeadowPoint() });
       }
-      spawnCooldown = 3.2 + Math.random() * 3.4;
+      spawnCooldown = 1.05 + Math.random() * 1.15;
     }
   }
 
@@ -2049,6 +2330,7 @@
     if (animal.kind === 'kangaroo') releaseJoey(animal);
     else if (animal.kind === 'gorilla' && animal.carrying) releaseApe(animal);
     else if (animal.kind === 'rabbit') releaseBunnies(animal);
+    else if (animal.kind === 'poacher') dropTusk(animal);
     animal.state = 'dead';
     animal.deadFor = 0;
     animal.fallSide = Math.random() < 0.5 ? -1 : 1;
@@ -2068,15 +2350,17 @@
       : animal.kind === 'gorilla' ? 1.15
       : animal.kind === 'kangaroo' ? 1.45
       : animal.kind === 'caveman' ? 1.25
+      : animal.kind === 'poacher' ? 1.3
       : 1.1;
     spawnPuff(animal.root.position.x, height, animal.root.position.z, 0xfff3c8, 14);
     playThud();
     toast(NAMES[animal.kind] + ' · HIT +' + animal.points, true);
+    if (animal.kind === 'poacher') updatePoacherBanner();
   }
 
   function spook(impact) {
     for (const animal of animals) {
-      if (animal.state === 'dead' || animal.state === 'flee' || animal.state === 'dash' || animal.state === 'drop') continue;
+      if (animal.state === 'dead' || animal.state === 'flee' || animal.state === 'dash' || animal.state === 'drop' || animal.state === 'firing') continue;
       if (animal.kind === 'blue' || animal.kind === 'piglet') continue;
       if (animal.herd) {
         const near = Math.hypot(animal.root.position.x - impact.x, animal.root.position.z - impact.z);
@@ -2285,10 +2569,12 @@
       plural(harvest.ape, 'baby gorilla', 'baby gorillas'),
       plural(harvest.caveman, 'caveman', 'cavemen'),
       plural(harvest.bunny, 'bunny', 'bunnies'),
+      plural(harvest.poacher, 'poacher'),
     ].join('   ·   ');
     const acc = shots ? Math.round((hits / shots) * 100) : 0;
     endStats.textContent = plural(shots, 'shot') + '   ·   ' + plural(hits, 'hit') + '   ·   ' + acc + '% accuracy';
     hud.hidden = true;
+    if (poacherEl) poacherEl.hidden = true;
     endScreen.hidden = false;
     titleScreen.hidden = true;
     updateScopeVisuals();
@@ -2327,9 +2613,14 @@
     harvest.ape = 0;
     harvest.caveman = 0;
     harvest.bunny = 0;
+    harvest.poacher = 0;
+    if (poacherEl) {
+      poacherEl.hidden = true;
+      poacherEl.classList.remove('hot');
+    }
     clearAnimals();
     spawnOpening();
-    spawnCooldown = 4.5;
+    spawnCooldown = 0.9;
   }
 
   function beginHunt() {
@@ -3405,6 +3696,8 @@
     updateCamera(dt);
     updateAmbience(dt);
     updatePuffs(dt);
+    updateDrops(dt);
+    updatePoacherBanner();
     if (phase === 'title' || phase === 'ended' || blocked) updateAnimals(dt);
     if ((phase === 'title' || phase === 'playing') && !blocked) updatePopulation(dt);
     if (phase === 'playing' && !blocked) {
@@ -3542,6 +3835,12 @@
         fire: onFire,
         tick(dt) {
           updateAnimals(dt || 0.05);
+          updateDrops(dt || 0.05);
+          updatePoacherBanner();
+        },
+        stepPop(dt) {
+          updatePopulation(dt || 0.2);
+          return activeCount();
         },
         parade(kind) {
           for (let i = animals.length - 1; i >= 0; i--) {
@@ -3575,6 +3874,8 @@
             placeAnimal('lion', { x: -10, z: -22, state: 'dash', target: { x: 24, z: -22 }, path: [] });
           } else if (kind === 'kangaroo' || kind === 'caveman') {
             placeAnimal(kind, { x: -12, z: -18, state: 'dash', target: { x: 18, z: -18 }, path: [] });
+          } else if (kind === 'poacher') {
+            placeAnimal('poacher', { x: -8, z: -18, state: 'dash', target: { x: 0, z: -18 }, path: [{ x: 12, z: -18 }], leg: 8 });
           } else {
             placeAnimal('blue', { x: -10, z: -22, state: 'dash', target: { x: 24, z: -22 }, path: [] });
           }

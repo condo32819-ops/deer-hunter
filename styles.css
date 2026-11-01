@@ -108,6 +108,72 @@ html, body {
 
 #bang.on { animation: bang 0.55s linear forwards; }
 
+#bang.hostile {
+  background: radial-gradient(circle at 50% 42%,
+    rgba(255, 86, 64, 0.78) 0%,
+    rgba(160, 24, 18, 0.4) 28%,
+    rgba(255, 255, 255, 0) 64%);
+}
+
+#poacher {
+  position: absolute;
+  top: calc(92px + var(--safe-t));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(250px, 78%);
+  z-index: 4;
+  pointer-events: none;
+  text-align: center;
+  padding: 7px 10px 8px;
+  border-radius: 12px;
+  background: rgba(16, 26, 18, 0.9);
+  border: 1px solid var(--gold);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+#poacher strong {
+  display: block;
+  letter-spacing: 0.16em;
+  font-size: 14px;
+  color: var(--gold);
+}
+
+#poacher-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--cream);
+}
+
+.poacher-track {
+  margin: 6px auto 0;
+  width: 100%;
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+#poacher-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--gold);
+}
+
+#poacher.hot {
+  border-color: #e25b45;
+  animation: poacherPulse 0.45s ease-in-out infinite;
+}
+
+#poacher.hot strong { color: #ffb4a2; }
+#poacher.hot #poacher-fill { background: #e25b45; }
+
+@keyframes poacherPulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.04); }
+}
+
 #streak {
   position: absolute;
   left: 50%;
@@ -779,5 +845,6 @@ body.portrait #toast { font-size: 22px; }
 @media (prefers-reduced-motion: reduce) {
   .phone { animation: none; transform: rotate(90deg); }
   #fader, #view, #hint, #toast, #scope { transition: none; }
+  #poacher.hot { animation: none; }
   #reload.need { animation: none; }
 }

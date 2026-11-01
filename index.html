@@ -14,7 +14,7 @@
   <link rel="icon" href="favicon.png" type="image/png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css?v=20261031">
+  <link rel="stylesheet" href="styles.css?v=20261101">
 </head>
 <body>
   <div id="stage">
@@ -53,8 +53,8 @@
         </div>
         <p class="kicker">A morning stand</p>
         <h1>Deer Hunter</h1>
-        <p class="lede">Two and a half quiet minutes on a wider meadow. A lion, a hopping kangaroo, or a slow herd sometimes crosses.</p>
-        <p class="legend">Doe 100 · Buck 150 · Blue deer 400<br>Boar 120 · Piglet 80 · Rabbit 50 · Bunny 40<br>Giraffe 200 · Elephant 250 · Kangaroo 220<br>Lion 300 · Gorilla 160 · Caveman 140<br>Joey 800 · Baby gorilla 700</p>
+        <p class="lede">The meadow stays busy. Stop a tusk poacher before he turns and fires.</p>
+        <p class="legend">Doe 100 · Buck 150 · Blue deer 400<br>Boar 120 · Piglet 80 · Rabbit 50 · Bunny 40<br>Giraffe 200 · Elephant 250 · Kangaroo 220<br>Lion 300 · Gorilla 160 · Caveman 140<br>Joey 800 · Baby gorilla 700 · Poacher 500</p>
         <ul class="chips">
           <li>Drag to aim</li>
           <li>Scope</li>
@@ -86,6 +86,11 @@
       </header>
       <p id="sound-note">Silent switch mutes</p>
       <p id="hint">Drag to aim · Hold Fire · Time the sway</p>
+      <div id="poacher" hidden>
+        <strong>POACHER!</strong>
+        <span id="poacher-note">Stop him before halfway</span>
+        <div class="poacher-track"><i id="poacher-fill"></i></div>
+      </div>
       <div id="toast"></div>
       <div class="left-controls">
         <div class="ammo-panel">
@@ -129,6 +134,6 @@
 
   <noscript>Deer Hunter needs JavaScript and WebGL.</noscript>
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js"></script>
-  <script src="game.js?v=20261031"></script>
+  <script src="game.js?v=20261101"></script>
 </body>
 </html>
