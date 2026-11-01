@@ -6,7 +6,7 @@
   const ROUND_SECONDS = params.get('quick') === '1' ? 12 : 150;
   const MAG = 5;
   const RESERVE_START = 10;
-  const MAX_ANIMALS = 28;
+  const MAX_ANIMALS = 20;
   const HIP_FOV = 52;
   const SCOPE_FOV = 15;
   const START_YAW = -0.08;
@@ -106,7 +106,7 @@
   let time = 0;
   let hintTime = 0;
   let toastTime = 0;
-  let spawnCooldown = 1.6;
+  let spawnCooldown = 3.4;
   let rangeAcc = 0;
   let birdIn = 3;
   let muted = false;
@@ -1568,8 +1568,24 @@
     return { start, mid, end };
   }
 
+  function wideCross(kind) {
+    const gorilla = kind === 'gorilla';
+    const herd = gorilla || kind === 'giraffe' || kind === 'elephant';
+    const left = Math.random() < 0.5;
+    const reach = kind === 'caveman' || kind === 'poacher' ? 34 : gorilla ? 30 : herd ? 56 : 46;
+    const near = gorilla || kind === 'lion' || kind === 'kangaroo' || kind === 'caveman' || kind === 'poacher';
+    const z0 = (near ? -18 : -34) - Math.random() * (near ? 26 : 28);
+    const startX = left ? -reach - Math.random() * 8 : reach + Math.random() * 8;
+    const endX = -startX;
+    return {
+      start: { x: startX, z: z0 },
+      mid: { x: (Math.random() - 0.5) * 10, z: z0 + (Math.random() - 0.5) * 6 },
+      end: { x: endX, z: z0 + (Math.random() - 0.5) * 8 },
+    };
+  }
+
   function randomMeadowPoint() {
-    if (Math.random() < 0.78) return viewPoint(14 + Math.random() * 26, (Math.random() - 0.5) * 24);
+    if (Math.random() < 0.4) return viewPoint(14 + Math.random() * 26, (Math.random() - 0.5) * 24);
     for (let i = 0; i < 12; i++) {
       const ang = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.random());
@@ -1581,11 +1597,14 @@
   }
 
   function sampleEdge() {
-    if (Math.random() < 0.84) {
+    if (Math.random() < 0.4) {
       return viewPoint(15 + Math.random() * 22, (Math.random() - 0.5) * 26);
     }
-    const side = Math.random() < 0.5 ? -1 : 1;
-    return viewPoint(18 + Math.random() * 16, side * (16 + Math.random() * 10));
+    const side = Math.floor(Math.random() * 4);
+    if (side === 0) return { x: -62 - Math.random() * 10, z: -16 - Math.random() * 70 };
+    if (side === 1) return { x: 62 + Math.random() * 10, z: -16 - Math.random() * 70 };
+    if (side === 2) return { x: -40 + Math.random() * 80, z: -96 - Math.random() * 10 };
+    return { x: -28 + Math.random() * 56, z: -12 - Math.random() * 4 };
   }
 
   function placeAnimal(kind, opts) {
@@ -1647,15 +1666,13 @@
 
   function spawnOpening() {
     clearAnimals();
-    placeAnimal('buck', { x: 3.5, z: -16, state: 'graze', broadside: true, timer: 5 });
-    placeAnimal('doe', { x: -5, z: -20, state: 'walk', target: { x: 2, z: -26 } });
-    placeAnimal('doe', { x: 9, z: -26, state: 'graze', broadside: true, timer: 4.5 });
-    placeAnimal('buck', { x: -10, z: -30, state: 'walk', target: { x: -1, z: -22 } });
-    placeAnimal('boar', { x: -8, z: -18, state: 'graze', broadside: true, timer: 4 });
-    placeAnimal('boar', { x: 12, z: -34, state: 'walk', target: { x: 2, z: -28 } });
-    placeAnimal('rabbit', { x: -1.5, z: -13, state: 'walk', target: { x: 4, z: -17 } });
-    placeAnimal('rabbit', { x: 6, z: -15, state: 'walk', target: { x: -2, z: -19 } });
-    placeAnimal('doe', { x: 1, z: -38, state: 'walk', target: { x: -4, z: -28 } });
+    placeAnimal('buck', { x: 6, z: -22, state: 'graze', broadside: true, timer: 7 });
+    placeAnimal('doe', { x: -14, z: -40, state: 'walk', target: { x: 2, z: -48 } });
+    placeAnimal('boar', { x: 20, z: -52, state: 'graze', broadside: true, timer: 6 });
+    placeAnimal('rabbit', { x: -2.2, z: -16, state: 'walk', target: { x: 6, z: -20 } });
+    placeAnimal('doe', { x: -6, z: -64, state: 'graze', broadside: true, timer: 8 });
+    placeAnimal('buck', { x: 12, z: -32, state: 'walk', target: { x: -2, z: -42 } });
+    placeAnimal('rabbit', { x: 8, z: -26, state: 'walk', target: { x: -4, z: -34 } });
   }
 
   function countKind(kind) {
@@ -1672,15 +1689,15 @@
 
   function pickKind() {
     const open = slotsOpen();
-    if (Math.random() < 0.11 && countKind('blue') < 2) return 'blue';
-    if (Math.random() < 0.16 && countKind('piglet') < 2) return 'piglet';
-    if (Math.random() < 0.13 && countKind('giraffe') < 5 && open >= 1) return 'giraffe';
-    if (Math.random() < 0.1 && countKind('elephant') < 4 && open >= 1) return 'elephant';
-    if (Math.random() < 0.12 && countKind('lion') < 2) return 'lion';
-    if (Math.random() < 0.09 && countKind('kangaroo') < 2) return 'kangaroo';
-    if (Math.random() < 0.07 && countKind('caveman') < 2) return 'caveman';
-    if (phase === 'playing' && Math.random() < 0.08 && countKind('poacher') === 0) return 'poacher';
-    if (Math.random() < 0.15 && countKind('gorilla') < 5 && open >= 1) return 'gorilla';
+    if (Math.random() < 0.095 && countKind('blue') === 0) return 'blue';
+    if (Math.random() < 0.14 && countKind('piglet') === 0) return 'piglet';
+    if (Math.random() < 0.115 && countKind('giraffe') === 0 && open >= 1) return 'giraffe';
+    if (Math.random() < 0.09 && countKind('elephant') === 0 && open >= 1) return 'elephant';
+    if (Math.random() < 0.105 && countKind('lion') === 0) return 'lion';
+    if (Math.random() < 0.078 && countKind('kangaroo') === 0) return 'kangaroo';
+    if (Math.random() < 0.06 && countKind('caveman') === 0) return 'caveman';
+    if (phase === 'playing' && Math.random() < 0.07 && countKind('poacher') === 0) return 'poacher';
+    if (Math.random() < 0.135 && countKind('gorilla') === 0 && open >= 1) return 'gorilla';
     const roll = Math.random();
     if (roll < 0.22) return 'buck';
     if (roll < 0.52) return 'doe';
@@ -1714,7 +1731,9 @@
     if (count < 1) return 0;
     const gorilla = kind === 'gorilla';
     const leadCarries = gorilla && !forcedCount && countCarrying() === 0 && Math.random() < 0.55;
-    const cross = viewCross(gorilla ? 18 : 28, gorilla ? 34 : 46, gorilla ? 14 : 16);
+    const cross = Math.random() < 0.5
+      ? viewCross(gorilla ? 18 : 28, gorilla ? 34 : 46, gorilla ? 14 : 16)
+      : wideCross(kind);
     const dx = cross.end.x - cross.start.x;
     const dz = cross.end.z - cross.start.z;
     const span = Math.hypot(dx, dz) || 1;
@@ -1752,7 +1771,9 @@
 
   function spawnDasher(kind) {
     if (kind === 'piglet') {
-      const spot = viewPoint(14 + Math.random() * 16, (Math.random() - 0.5) * 14);
+      const spot = Math.random() < 0.5
+        ? viewPoint(14 + Math.random() * 16, (Math.random() - 0.5) * 14)
+        : { x: -18 + Math.random() * 36, z: -18 - Math.random() * 44 };
       let x = spot.x;
       let z = spot.z;
       const hops = [];
@@ -1776,7 +1797,7 @@
     const depthMin = kind === 'blue' ? 22 : poacher ? 16 : near ? 18 : 22;
     const depthMax = kind === 'blue' ? 42 : poacher ? 28 : near ? 34 : 40;
     const half = kind === 'blue' ? 22 : poacher ? 13 : 16;
-    const cross = viewCross(depthMin, depthMax, half);
+    const cross = Math.random() < 0.5 ? viewCross(depthMin, depthMax, half) : wideCross(kind);
     const leg = Math.hypot(cross.mid.x - cross.start.x, cross.mid.z - cross.start.z);
     placeAnimal(kind, {
       x: cross.start.x,
@@ -2082,7 +2103,7 @@
       animal.puffed = true;
       spawnPuff(animal.root.position.x, 0.2, animal.root.position.z, 0xcbb892);
     }
-    if (animal.deadFor > 4.6) removeAnimal(animal);
+    if (animal.deadFor > 6.4) removeAnimal(animal);
   }
 
   function poacherBearing(animal) {
@@ -2210,8 +2231,10 @@
           animal.shotsLeft -= 1;
           animal.timer = 0.85;
           if (animal.shotsLeft <= 0) {
+            animal.state = 'flee';
+            setFleeTarget(animal);
+            updatePoacherBanner();
             animateAnimal(animal, dt);
-            endRound('The poacher ran you off');
             return;
           }
         }
@@ -2309,7 +2332,7 @@
 
   function updatePopulation(dt) {
     if (activeCount() >= MAX_ANIMALS) {
-      spawnCooldown = 0.5;
+      spawnCooldown = 0.85;
       return;
     }
     spawnCooldown -= dt;
@@ -2321,7 +2344,7 @@
         const spot = sampleEdge();
         placeAnimal(kind, { x: spot.x, z: spot.z, state: 'walk', target: randomMeadowPoint() });
       }
-      spawnCooldown = 1.05 + Math.random() * 1.15;
+      spawnCooldown = 2.15 + Math.random() * 1.3;
     }
   }
 
@@ -2620,7 +2643,7 @@
     }
     clearAnimals();
     spawnOpening();
-    spawnCooldown = 0.9;
+    spawnCooldown = 2.6;
   }
 
   function beginHunt() {
